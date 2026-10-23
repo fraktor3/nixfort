@@ -1,0 +1,226 @@
+{
+ "system": {
+  "state": "OK",
+  "result": {
+   "hostname": "nx-client",
+   "interfaces": [
+    {
+     "ipv4": [
+      "127.0.0.1/8"
+     ],
+     "name": "lo",
+     "state": "UNKNOWN"
+    },
+    {
+     "ipv4": [
+      "10.0.2.15/24"
+     ],
+     "name": "enp0s3",
+     "state": "UP"
+    },
+    {
+     "ipv4": [
+      "10.77.0.40/24"
+     ],
+     "name": "enp0s8",
+     "state": "UP"
+    },
+    {
+     "ipv4": [
+      "10.88.0.10/24"
+     ],
+     "name": "enp0s9",
+     "state": "UP"
+    }
+   ],
+   "ip_forward": false,
+   "ipv6_present": true,
+   "journald_active": true,
+   "os": {
+    "arch": "x86_64",
+    "id": "ubuntu",
+    "kernel": "6.8.0-147-generic",
+    "pretty_name": "Ubuntu 24.04.5 LTS",
+    "version": "24.04"
+   },
+   "os_profile": "ubuntu-24.04",
+   "os_supported": true,
+   "packages": {
+    "fail2ban": null,
+    "nftables": "1.0.9-1ubuntu0.1",
+    "openssh-server": "1:9.6p1-3ubuntu13.20",
+    "suricata": null
+   },
+   "routes": [
+    {
+     "dev": "enp0s3",
+     "dst": "default",
+     "gateway": "10.0.2.2"
+    },
+    {
+     "dev": "enp0s3",
+     "dst": "1.0.0.1",
+     "gateway": "10.0.2.2"
+    },
+    {
+     "dev": "enp0s3",
+     "dst": "1.1.1.1",
+     "gateway": "10.0.2.2"
+    },
+    {
+     "dev": "enp0s3",
+     "dst": "10.0.2.0/24",
+     "gateway": null
+    },
+    {
+     "dev": "enp0s3",
+     "dst": "10.0.2.2",
+     "gateway": null
+    },
+    {
+     "dev": "enp0s8",
+     "dst": "10.77.0.0/24",
+     "gateway": null
+    },
+    {
+     "dev": "enp0s9",
+     "dst": "10.88.0.0/24",
+     "gateway": null
+    },
+    {
+     "dev": "enp0s9",
+     "dst": "10.99.0.0/24",
+     "gateway": "10.88.0.1"
+    },
+    {
+     "dev": "enp0s3",
+     "dst": "192.168.1.1",
+     "gateway": "10.0.2.2"
+    }
+   ],
+   "services": {
+    "fail2ban": "absent",
+    "firewalld": "absent",
+    "nftables": "inactive",
+    "ssh": "active",
+    "suricata": "absent",
+    "ufw": "inactive"
+   },
+   "time_sync": {
+    "service": "systemd-timesyncd.service",
+    "synchronized": true
+   }
+  },
+  "error_code": null,
+  "agent_version": "1.0.0",
+  "os_profile": "ubuntu-24.04",
+  "collected_at": "2026-10-23T10:00:00+00:00"
+ },
+ "listeners": {
+  "state": "OK",
+  "result": {
+   "listeners": [
+    {
+     "addr": "0.0.0.0",
+     "loopback": false,
+     "port": 22,
+     "process": "sshd",
+     "proto": "tcp"
+    },
+    {
+     "addr": "::",
+     "loopback": false,
+     "port": 22,
+     "process": "sshd",
+     "proto": "tcp"
+    },
+    {
+     "addr": "127.0.0.53",
+     "loopback": true,
+     "port": 53,
+     "process": "systemd-resolve",
+     "proto": "tcp"
+    },
+    {
+     "addr": "127.0.0.54",
+     "loopback": true,
+     "port": 53,
+     "process": "systemd-resolve",
+     "proto": "tcp"
+    }
+   ]
+  },
+  "error_code": null,
+  "agent_version": "1.0.0",
+  "os_profile": "ubuntu-24.04",
+  "collected_at": "2026-10-23T10:00:00+00:00"
+ },
+ "ssh": {
+  "state": "OK",
+  "result": {
+   "config_valid": true,
+   "effective": {
+    "kbdinteractiveauthentication": "no",
+    "logingracetime": "120",
+    "maxauthtries": "6",
+    "passwordauthentication": "yes",
+    "permitemptypasswords": "no",
+    "permitrootlogin": "without-password",
+    "port": "22",
+    "pubkeyauthentication": "yes",
+    "x11forwarding": "yes"
+   },
+   "validate_stderr": ""
+  },
+  "error_code": null,
+  "agent_version": "1.0.0",
+  "os_profile": "ubuntu-24.04",
+  "collected_at": "2026-10-23T10:00:00+00:00"
+ },
+ "fail2ban": {
+  "state": "OK",
+  "result": {
+   "installed": false,
+   "jails": [],
+   "service": "absent",
+   "sshd": null
+  },
+  "error_code": null,
+  "agent_version": "1.0.0",
+  "os_profile": "ubuntu-24.04",
+  "collected_at": "2026-10-23T10:00:00+00:00"
+ },
+ "nft": {
+  "state": "OK",
+  "result": {
+   "conflict": {
+    "docker": false,
+    "firewalld": false,
+    "foreign_base_chains": [],
+    "ufw": false
+   },
+   "nft_version": "1.0.9",
+   "nixfort_chains": {},
+   "nixfort_input_ssh_sources": [],
+   "nixfort_ruleset_sha256": null,
+   "nixfort_table_present": false,
+   "policy_meta": null,
+   "tables": []
+  },
+  "error_code": null,
+  "agent_version": "1.0.0",
+  "os_profile": "ubuntu-24.04",
+  "collected_at": "2026-10-23T10:00:00+00:00"
+ },
+ "suricata": {
+  "state": "OK",
+  "result": {
+   "installed": false,
+   "service": "absent"
+  },
+  "error_code": null,
+  "agent_version": "1.0.0",
+  "os_profile": "ubuntu-24.04",
+  "collected_at": "2026-10-23T10:00:00+00:00"
+ }
+}

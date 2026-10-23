@@ -107,3 +107,13 @@ def test_audit_log_visibility(client_as, make_user, project, other_project, admi
     body = client_as(u).get("/audit/").content.decode()
     assert "&#x27;A&#x27;" in body or "'A'" in body
     assert "'B'" not in body and "&#x27;B&#x27;" not in body
+
+
+def test_redact_does_not_hide_status_names():
+    assert redact({"PASS": 3, "FAIL": 1, "db_password": "x", "SECRET_KEY": "y", "access_token": "z"}) == {
+        "PASS": 3,
+        "FAIL": 1,
+        "db_password": "***",
+        "SECRET_KEY": "***",
+        "access_token": "***",
+    }

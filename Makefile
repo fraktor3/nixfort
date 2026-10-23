@@ -1,10 +1,10 @@
 # NIXFORT — commands for the controller VM (nx-controller). Windows: use only `make test` equivalents in README.
 COMPOSE = docker compose
 
-.PHONY: help env tls keys up down restart logs ps createadmin itest test lint shell
+.PHONY: help env tls keys up down restart logs ps createadmin itest selfcheck test lint shell
 
 help:
-	@echo "env | tls | keys | up | down | restart | logs | ps | createadmin | itest | test | lint"
+	@echo "env | tls | keys | up | down | restart | logs | ps | createadmin | selfcheck | itest | test | lint"
 
 env:            ## create .env with random secrets
 	python3 deploy/gen-env.py
@@ -35,6 +35,10 @@ ps:
 
 createadmin:
 	$(COMPOSE) exec web python manage.py createadmin
+
+selfcheck:      ## end-to-end check of the running controller (DB, Redis auth, both queues, tools, key)
+	$(COMPOSE) exec web python manage.py selfcheck
+	$(COMPOSE) exec worker-mutation python manage.py selfcheck --key
 
 itest:          ## all tests inside the web container (PostgreSQL + Redis available)
 	$(COMPOSE) exec -e DJANGO_SETTINGS_MODULE=config.settings.test web /usr/local/bin/entrypoint.sh pytest -q -p no:cacheprovider

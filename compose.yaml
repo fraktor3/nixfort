@@ -9,6 +9,8 @@ x-app: &app
   env_file: .env
   environment:
     POSTGRES_HOST: postgres
+    # Overrides any REDIS_URL from .env: the broker always requires the password (ADR-026).
+    REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@redis:6379/0"
   restart: unless-stopped
   read_only: true
   tmpfs: [/tmp]
@@ -34,9 +36,15 @@ services:
   redis:
     image: redis:7
     restart: unless-stopped
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--protected-mode", "yes"]
+    # Password instead of protected mode: protected mode rejects connections from the other
+    # containers when no password is set (S-002 error 500). Not published outside the compose network.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}",
+              "--save", "", "--appendonly", "no"]
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # Must authenticate like a real client, otherwise "healthy" proves nothing.
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 5s
       retries: 20
 

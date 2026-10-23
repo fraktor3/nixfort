@@ -6,10 +6,12 @@ from django.views.decorators.http import require_POST
 from apps.core import audit
 from apps.core.models import Action
 from apps.core.rbac import Perm, has_perm, perm_required, require, visible_projects
+from apps.execution import services as job_services
+from apps.execution.models import JobType
 
 from . import services
 from .forms import HostKeyForm, NodeForm, ProjectForm
-from .models import HostKey, Node, Project
+from .models import HostKey, Node, PortScan, Project
 
 
 def project_list(request):
@@ -187,3 +189,61 @@ def hostkey_confirm(request, project_id, node_id):
         services.confirm_hostkey(node, request.user, request)
         messages.success(request, "Ключ подтверждён. Операции с узлом разрешены.")
     return redirect("inventory:node_detail", project_id=project_id, node_id=node.id)
+
+
+@require_POST
+@perm_required(Perm.RUN_JOBS)
+def inventory_run(request, project_id, node_id=None):
+    node = _node(request, node_id) if node_id else None
+    job = job_services.create_job(JobType.INVENTORY, request.project, request.user, node=node, request=request)
+    return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
+
+
+@require_POST
+@perm_required(Perm.EDIT_PROJECT)
+def hostkey_fetch(request, project_id, node_id):
+    node = _node(request, node_id)
+    require(request.user, Perm.RUN_JOBS, request.project, request)
+    job = job_services.create_job(JobType.FETCH_HOSTKEY, request.project, request.user, node=node, request=request)
+    return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
+
+
+@require_POST
+@perm_required(Perm.RUN_JOBS)
+def portscan_run(request, project_id):
+    from .handlers import nmap_scope_error
+
+    profile = request.POST.get("profile", "common")
+    if profile not in ("common", "top100"):
+        profile = "common"
+    nodes = list(request.project.nodes.filter(is_active=True))
+    err = nmap_scope_error(request.project, nodes)
+    if err:
+        audit.log(
+            request.user,
+            Action.ACCESS_DENIED,
+            project=request.project,
+            request=request,
+            outcome="DENIED",
+            reason=f"nmap_{err}",
+        )
+        messages.error(request, "Сканирование отклонено: цели вне подсетей проекта или не заданы.")
+        return redirect("inventory:portscan_list", project_id=project_id)
+    job = job_services.create_job(
+        JobType.PORT_SCAN, request.project, request.user, params={"profile": profile}, request=request
+    )
+    return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
+
+
+@perm_required(Perm.VIEW_PROJECT)
+def portscan_list(request, project_id):
+    scans = PortScan.objects.filter(project=request.project)[:20]
+    return render(
+        request,
+        "inventory/portscan_list.html",
+        {
+            "project": request.project,
+            "scans": scans,
+            "can_run": has_perm(request.user, Perm.RUN_JOBS, request.project) and not request.project.is_archived,
+        },
+    )

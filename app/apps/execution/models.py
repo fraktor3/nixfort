@@ -41,7 +41,7 @@ TERMINAL_STATES = frozenset(
 
 # ARCHITECTURE §4. Anything not listed is forbidden.
 ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
-    JobState.QUEUED: frozenset({JobState.RUNNING, JobState.CANCELLED, JobState.UNKNOWN}),
+    JobState.QUEUED: frozenset({JobState.RUNNING, JobState.CANCELLED, JobState.UNKNOWN, JobState.FAILED}),
     JobState.RUNNING: frozenset(
         {
             JobState.SUCCEEDED,

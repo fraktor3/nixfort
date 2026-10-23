@@ -15,4 +15,9 @@ urlpatterns = [
     path("<uuid:project_id>/nodes/<uuid:node_id>/deactivate/", views.node_deactivate, name="node_deactivate"),
     path("<uuid:project_id>/nodes/<uuid:node_id>/hostkey/", views.hostkey_set, name="hostkey_set"),
     path("<uuid:project_id>/nodes/<uuid:node_id>/hostkey/confirm/", views.hostkey_confirm, name="hostkey_confirm"),
+    path("<uuid:project_id>/inventory/", views.inventory_run, name="inventory_run"),
+    path("<uuid:project_id>/nodes/<uuid:node_id>/inventory/", views.inventory_run, name="node_inventory_run"),
+    path("<uuid:project_id>/nodes/<uuid:node_id>/hostkey/fetch/", views.hostkey_fetch, name="hostkey_fetch"),
+    path("<uuid:project_id>/scans/", views.portscan_list, name="portscan_list"),
+    path("<uuid:project_id>/scans/run/", views.portscan_run, name="portscan_run"),
 ]

@@ -81,3 +81,14 @@ def watchdog() -> int:
         except services.InvalidTransition:
             continue
     return n
+
+
+@shared_task(name="execution.selfcheck_ping", acks_late=False, autoretry_for=(), max_retries=0)
+def selfcheck_ping(token: str, queue: str) -> None:
+    """Round trip used by `manage.py selfcheck`: proves broker publish + worker consumption per queue."""
+    import socket
+
+    import redis
+    from django.conf import settings
+
+    redis.Redis.from_url(settings.REDIS_URL).set(f"nixfort:selfcheck:{token}:{queue}", socket.gethostname(), ex=120)

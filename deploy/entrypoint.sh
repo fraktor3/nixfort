@@ -6,11 +6,11 @@ case "$ROLE" in
   web)
     python manage.py migrate --noinput
     python manage.py collectstatic --noinput -v0
-    exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60 \
+    exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60 \
          --forwarded-allow-ips='*' --access-logfile - --error-logfile -
     ;;
   worker-readonly)
-    exec celery -A config worker -Q readonly -c 4 -n readonly@%h --loglevel=INFO
+    exec celery -A config worker -Q readonly -c 2 -n readonly@%h --loglevel=INFO
     ;;
   worker-mutation)
     exec celery -A config worker -Q mutation -c 1 -n mutation@%h --loglevel=INFO

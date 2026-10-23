@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / <a href="{% url 'checks:run_list' project.id %}">аудит</a></nav>
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div><h1 class="h3">Аудит {{ run.created_at|date:"d.m.Y H:i:s" }}</h1>
+  <div class="small text-muted">каталог {{ run.catalog_version }} · политика {% if run.policy_version %}v{{ run.policy_version }}{% else %}не задана{% endif %} · {{ run.get_state_display }}</div></div>
+  {% block plan_button %}{% endblock %}
+</div>
+<div class="mb-3">{% for k, v in total.items %}<span class="badge fs-6 text-bg-{{ k|status_class }} me-2">{{ k }}: {{ v }}</span>{% endfor %}</div>
+<div class="alert alert-secondary limits small">FAIL — нарушение подтверждено данными; UNKNOWN — данных недостаточно (это не «безопасно»); ERROR — данные не удалось собрать; NOT_APPLICABLE — не относится к роли узла.</div>
+<div class="table-responsive"><table class="table table-sm align-middle">
+<thead><tr><th>Проверка</th>{% for n in nodes %}<th class="text-center">{{ n.name }}</th>{% endfor %}</tr></thead><tbody>
+{% for row in rows %}<tr><td><span class="mono small">{{ row.check.id }}</span> {{ row.check.title }}</td>
+  {% for c in row.cells %}<td class="text-center">{% if c %}<a class="badge text-bg-{{ c.status|status_class }} text-decoration-none" href="{% url 'checks:result_detail' project.id run.id c.id %}" title="{{ c.explanation }}">{{ c.status }}</a>{% endif %}</td>{% endfor %}</tr>
+{% endfor %}</tbody></table></div>
+{% endblock %}

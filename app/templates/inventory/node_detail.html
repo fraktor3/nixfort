@@ -4,7 +4,7 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
   <h1 class="h3">{{ node.name }} <span class="badge text-bg-{{ node.status|status_class }} fs-6">{{ node.get_status_display }}</span></h1>
   <div class="btn-group">{% if can_edit %}<a class="btn btn-outline-secondary" href="{% url 'inventory:node_edit' project.id node.id %}">Изменить</a>{% endif %}
-    {% block node_actions %}{% endblock %}</div>
+    {% if can_run %}<form method="post" action="{% url 'inventory:node_inventory_run' project.id node.id %}">{% csrf_token %}<button class="btn btn-primary" {% if not node.confirmed_hostkey %}disabled title="Сначала подтвердите ключ"{% endif %}>Инвентаризация</button></form>{% endif %}</div>
 </div>
 <div class="row g-4">
 <div class="col-lg-5">
@@ -24,6 +24,8 @@
         {% if can_confirm %}<form method="post" action="{% url 'inventory:hostkey_confirm' project.id node.id %}">{% csrf_token %}<button class="btn btn-sm btn-warning">Отпечаток совпадает — подтвердить</button></form>{% endif %}
       {% endif %}
     {% else %}<p class="text-muted small">Ключ не задан.</p>{% endif %}
+    {% if can_edit and can_run %}<form class="mt-3" method="post" action="{% url 'inventory:hostkey_fetch' project.id node.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-primary">Получить ключ с узла</button>
+      <span class="form-text d-block">Ключ получается по сети и сохраняется неподтверждённым. Подтверждайте только после сверки отпечатка с выводом на самом узле.</span></form>{% endif %}
     {% if can_edit %}<form class="mt-3" method="post" action="{% url 'inventory:hostkey_set' project.id node.id %}">{% csrf_token %}
       <textarea name="public_key" rows="2" class="form-control form-control-sm mono" placeholder="ssh-ed25519 AAAA…"></textarea>
       <button class="btn btn-sm btn-outline-secondary mt-2">Сохранить ключ</button></form>{% endif %}

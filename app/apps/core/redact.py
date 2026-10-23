@@ -6,7 +6,10 @@ import logging
 import re
 from typing import Any
 
-SECRET_KEYS = re.compile(r"(pass(word)?|secret|token|private|api[_-]?key|credential|^key$)", re.I)
+SECRET_KEYS = re.compile(
+    r"(^|[_-])(password|passwd|passphrase|pwd|secret|token|private[_-]?key|api[_-]?key|credentials?)([_-]|$)|^key$",
+    re.I,
+)
 SECRET_VALUES = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S),
     re.compile(r"(?i)(password|passwd|pwd|secret|token)\s*[=:]\s*\S+"),

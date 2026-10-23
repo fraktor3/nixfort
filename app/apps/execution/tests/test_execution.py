@@ -126,3 +126,17 @@ def test_job_page_and_htmx(client_as, project, operator):
     assert r.status_code == 200 and "hx-get" in r.content.decode()
     r2 = c.get(f"/projects/{project.id}/jobs/{job.id}/", HTTP_HX_REQUEST="true")
     assert "<html" not in r2.content.decode()
+
+
+def test_broker_down_gives_failed_job_not_500(client_as, project, operator, monkeypatch):
+    from kombu.exceptions import OperationalError
+
+    def down(*a, **k):
+        raise OperationalError("Error 104 while writing to socket. Connection reset by peer.")
+
+    monkeypatch.setattr("apps.execution.tasks.run_job.apply_async", down)
+    r = client_as(operator).post(f"/projects/{project.id}/jobs/noop/")
+    assert r.status_code == 302
+    job = Job.objects.get()
+    assert job.state == JobState.FAILED and job.safe_error_code == "broker_unavailable"
+    assert "Redis" in job.logs.get().message

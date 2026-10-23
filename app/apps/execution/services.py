@@ -71,10 +71,34 @@ def create_job(job_type: str, project, user, node=None, params: dict[str, Any] |
         type=job_type,
         node=str(node) if node else None,
     )
+    transaction.on_commit(lambda: enqueue(job))
+    return job
+
+
+def enqueue(job: Job) -> None:
+    """Hand the job to the broker. If the broker is unreachable the job becomes FAILED with an
+    explicit reason instead of an HTTP 500 and a job silently stuck in QUEUED."""
+    from kombu.exceptions import OperationalError
+
     from .tasks import run_job
 
-    transaction.on_commit(lambda: run_job.apply_async(args=[str(job.id)], queue=job.queue))
-    return job
+    try:
+        run_job.apply_async(
+            args=[str(job.id)],
+            queue=job.queue,
+            retry=True,
+            retry_policy={"max_retries": 2, "interval_start": 0.5, "interval_step": 0.5},
+        )
+    except OperationalError:
+        import logging
+
+        logging.getLogger(__name__).exception("broker unavailable, job %s not queued", job.id)
+        transition(job, JobState.FAILED, phase="очередь недоступна", error_code="broker_unavailable")
+        log(
+            job,
+            "Брокер заданий (Redis) недоступен: задание не поставлено в очередь. Проверьте make selfcheck.",
+            JobLog.Level.ERROR,
+        )
 
 
 @transaction.atomic

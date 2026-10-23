@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / сканирование портов</nav>
+<div class="d-flex justify-content-between align-items-start mb-3"><div>
+  <h1 class="h3">Сканирование портов (Nmap)</h1>
+  <p class="text-muted small mb-0">TCP connect-сканирование (<span class="mono">-sT</span>) только адресов узлов проекта, с ограничением скорости. Результат показывает доступность <b>с точки контроллера</b>; это не поиск уязвимостей (CVE).</p></div>
+  {% if can_run %}<form method="post" action="{% url 'inventory:portscan_run' project.id %}" class="d-flex gap-2">{% csrf_token %}
+    <select name="profile" class="form-select form-select-sm"><option value="common">Типовые порты (31)</option><option value="top100">Top-100</option></select>
+    <button class="btn btn-sm btn-primary text-nowrap">Сканировать</button></form>{% endif %}
+</div>
+{% for s in scans %}<div class="card mb-3"><div class="card-header small">{{ s.created_at|date:"d.m.Y H:i:s" }} · профиль {{ s.ports }} · {{ s.result.nmap_version|default:"" }}</div>
+  <div class="card-body">{% if s.result.error %}<span class="text-danger">Ошибка: {{ s.result.error }}</span>{% else %}
+  <table class="table table-sm mb-0"><thead><tr><th>Адрес</th><th>Состояние</th><th>Открытые порты</th></tr></thead><tbody>
+  {% for h in s.result.hosts %}<tr><td class="mono">{{ h.ip }}</td><td>{{ h.status }}</td><td class="mono">{{ h.open_ports|join:", "|default:"—" }}</td></tr>{% endfor %}
+  </tbody></table>{% endif %}</div></div>
+{% empty %}<p class="text-muted">Сканирований ещё не было.</p>{% endfor %}
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / аудит</nav>
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div><h1 class="h3">Аудит безопасности</h1>
+  <p class="text-muted small mb-0">Каталог: {{ catalog|length }} проверок. Перед проверкой сведения собираются заново. Аудит ничего не меняет на узлах.</p></div>
+  {% if can_run %}<form method="post" action="{% url 'checks:run_start' project.id %}">{% csrf_token %}<button class="btn btn-primary">Запустить аудит</button></form>{% endif %}
+</div>
+<table class="table"><thead><tr><th>Дата</th><th>Назначение</th><th>Политика</th><th>Итог</th><th>Кто</th></tr></thead><tbody>
+{% for r in runs %}<tr><td><a href="{% url 'checks:run_detail' project.id r.id %}">{{ r.created_at|date:"d.m.Y H:i:s" }}</a></td>
+  <td>{% if r.purpose == "post_change" %}после изменений{% else %}исходный{% endif %}</td><td>{% if r.policy_version %}v{{ r.policy_version }}{% else %}—{% endif %}</td>
+  <td>{% for k, v in r.summary.total.items %}<span class="badge text-bg-{{ k|status_class }} me-1">{{ k }} {{ v }}</span>{% empty %}<span class="text-muted">{{ r.get_state_display }}</span>{% endfor %}</td>
+  <td>{{ r.initiated_by|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="5" class="text-muted">Аудитов ещё не было.</td></tr>{% endfor %}</tbody></table>
+<details class="mt-4"><summary>Каталог проверок</summary>
+<table class="table table-sm small mt-2"><thead><tr><th>ID</th><th>Проверка</th><th>Роли</th><th>Ожидается</th><th>Исправление</th><th>Источник требования</th></tr></thead><tbody>
+{% for c in catalog %}<tr><td class="mono">{{ c.id }}</td><td>{{ c.title }}</td><td class="small">{{ c.roles|join:", " }}</td><td>{{ c.expected }}</td><td class="mono small">{{ c.remediation|default:"рекомендация" }}</td><td class="small">{{ c.source_ref }}</td></tr>{% endfor %}
+</tbody></table></details>
+{% endblock %}
