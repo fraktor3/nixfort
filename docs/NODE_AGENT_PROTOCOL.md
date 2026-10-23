@@ -80,8 +80,8 @@
 | `fail2ban.read_status.v1` | R | — | service, jails[], sshd{enabled, maxretry, bantime, findtime, currently_banned, banned_ips[]} (через `fail2ban-client get`) |
 | `fail2ban.apply_sshd_profile.v1` | M | `maxretry: 3..5`, `bantime_s: 600..86400`, `findtime_s: 60..3600`, `ignore_ips: list[IPv4/CIDR] ≤10`, `rollback_timeout_s` | `snapshot_id`, `validated`, `applied`, `timer_armed` |
 | `fail2ban.unban.v1` | M* | `ip: IPv4` | `{unbanned: bool}` (*без снимка — лабораторная операция снятия тестовой блокировки) |
-| `nft.inspect.v1` | R | — | nft_version, tables[{family, name}], nixfort_table_present, nixfort_ruleset_sha256, conflict{ufw, firewalld, docker, foreign_base_chains[]}, policy_meta (из комментария таблицы: policy_version, plan_hash) |
-| `nft.apply_policy.v1` | M | `management_sources: list[IPv4] 1..4`, `forward_rules: list[{src: CIDR\|IPv4, dst: IPv4, port: 1..65535, action: accept\|drop}] ≤200`, `input_allow_ports: list[int] ≤20`, `policy_meta: {policy_version: int, plan_hash: hex64}`, `rollback_timeout_s` | `snapshot_id`, `validated`, `applied`, `timer_armed`, `ruleset_sha256` |
+| `nft.inspect.v1` | R | — | nft_version, tables[{family, name}], nixfort_table_present, nixfort_ruleset_sha256, conflict{ufw, firewalld, docker, foreign_base_chains[]}, nixfort_chains{input, forward: {hook, policy}}, nixfort_input_ssh_sources[], policy_meta (из комментария таблицы: policy_version, rules_sha256) |
+| `nft.apply_policy.v1` | M | `policy_version: 1..10⁶`, `management_sources: list[IPv4] 1..4`, `forward_allow: list[{src: IPv4\|CIDR, dst: IPv4, port: 1..65535}] ≤200`, `input_allow: list[{src: IPv4\|CIDR, port}] ≤20`, `rollback_timeout_s: 30..300` | `snapshot_id`, `validated`, `applied`, `timer_armed`, `rules_sha256`, `ruleset_sha256`. Отказ `conflict`, если `ip_forward≠1`, активен UFW/firewalld, есть правила Docker или чужие базовые цепочки с `policy drop` |
 | `suricata.read_status.v1` | R | — | service, version, config_test{ok, stderr_tail}, eve{enabled, path, readable, size}, af_packet_interfaces[], nixfort_test_rule_loaded |
 | `suricata.read_events.v1` | R | `since_ts: ISO8601 \| null`, `limit: 1..500`, `types: subset{alert, anomaly}` | events[] (только поля: timestamp, event_type, src_ip, src_port, dest_ip, dest_port, proto, alert{signature_id, signature, severity}) |
 | `suricata.apply_sensor_profile.v1` | M | `interface: ^[a-z0-9]{1,15}$` (должен существовать на узле), `enable_test_rule: bool`, `rollback_timeout_s` | `snapshot_id`, `validated (suricata -T)`, `applied`, `timer_armed` |
@@ -94,36 +94,41 @@
 
 Семантика TCP-проб: `OPEN` — handshake успешен; `CLOSED` — RST (порт закрыт/reject); `TIMEOUT` — нет ответа (типично для `drop`); `UNREACHABLE` — ICMP unreachable/нет маршрута. Для deny-flow «заблокировано» = `TIMEOUT` или `CLOSED` **при условии**, что на baseline было `OPEN`.
 
-## 7. Шаблон nftables (рендерит агент)
+## 7. Шаблон nftables (рендерит агент, `/etc/nftables.d/nixfort.nft`, 0600)
 ```
 table inet nixfort {}
 delete table inet nixfort
 table inet nixfort {
-  comment "nixfort policy_version=<N> plan_hash=<hash>"
-  chain input {
-    type filter hook input priority 0; policy drop;
-    iif "lo" accept
-    ct state established,related accept
-    ct state invalid drop
-    ip protocol icmp accept
-    ip saddr { <management_sources> } tcp dport 22 accept
-    tcp dport { <input_allow_ports> } accept        # если список не пуст
-  }
-  chain forward {
-    type filter hook forward priority 0; policy drop;
-    ct state established,related accept
-    ct state invalid drop
-    ip protocol icmp accept
-    ip saddr <src> ip daddr <dst> tcp dport <port> accept   # для каждого ALLOW
-  }
+	comment "nixfort policy_version=<N> rules_sha256=<sha256 канонического JSON параметров>"
+	chain input {
+		type filter hook input priority filter; policy drop;
+		iif "lo" accept
+		ct state established,related accept
+		ct state invalid drop
+		meta l4proto { icmp, ipv6-icmp } accept
+		ip saddr { <management_sources> } tcp dport 22 accept
+		ip saddr <src> tcp dport <port> accept             # для каждого input_allow
+	}
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related accept
+		ct state invalid drop
+		meta l4proto { icmp, ipv6-icmp } accept
+		ip saddr <src> ip daddr <dst> tcp dport <port> accept   # для каждого forward_allow (ALLOW-потоки)
+	}
 }
 ```
-Строки 1–2 делают замену атомарной и идемпотентной (работает и на старых версиях nft, без `destroy`). Правила DENY явно не пишутся — их обеспечивает `policy drop`; DENY-flow в политике нужны для **проверки**. Чужие таблицы не трогаются; если обнаружены чужие base-chain на hook forward/input с `policy drop` — `conflict`, мутация запрещена.
+Строки 1–2 делают замену атомарной и идемпотентной (без `destroy`, работает на nft 1.0.6 Astra 1.8). Правила DENY не пишутся — их обеспечивает `policy drop`; DENY-потоки нужны для **проверки пробами**. Чужие таблицы не трогаются.
 
-Персистентность: файл `/etc/nftables.d/nixfort.nft` + строка `include "/etc/nftables.d/*.nft"` в `/etc/nftables.conf` (добавляется агентом один раз, со снимком).
+`rules_sha256` = SHA-256 от `json.dumps({policy_version, management_sources, forward_allow, input_allow}, sort_keys=True, separators=(",", ":"))`. Контроллер считает то же значение (`planner.rules_sha256`) и при постпроверке сравнивает с комментарием таблицы в ядре.
 
-## 8. Реализация (агент 1.1.0)
-Реализованы: все read-действия, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`.
-В работе: `nft.apply_policy.v1`, `suricata.apply_sensor_profile.v1`.
+Проверка кандидата: `nft -c -f nixfort.nft` и `nft -c -f /etc/nftables.conf`. Применение: `nft -f nixfort.nft`.
+Сохранение после перезагрузки: строка `include "/etc/nftables.d/*.nft"` добавляется в `/etc/nftables.conf` один раз (файл в снимке) и `systemctl enable nftables` (прежнее состояние в снимке). Откат: восстановить файлы → если наш файл был — `nft -f` его, если не было — `nft delete table inet nixfort`; если служба была выключена — `systemctl disable` (**никогда** `stop`: ExecStop службы очищает весь набор правил).
+
+Проверено на настоящем ядре (`agent/tests/test_nft_real.py`): три сетевых пространства клиент → шлюз → сервер; до правил 80/8080/22 OPEN, после — 80 OPEN, 8080/22 TIMEOUT; повторное применение не дублирует таблицу; удаление таблицы возвращает исходное состояние.
+
+## 8. Реализация (агент 1.2.0)
+Реализованы (агент 1.2.0): все read-действия, `nft.apply_policy.v1`, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`.
+В работе: `suricata.apply_sensor_profile.v1`.
 
 Общий путь изменения (`nixfort_agent/mutation.py: guarded_apply`): снимок → запись кандидата → проверка (при ошибке — восстановление, FAILED) → таймер отката (`systemd-run`, при ошибке — восстановление, ERROR timer_failed) → активация (при ошибке — откат). Откат по таймеру выполняет `/usr/local/sbin/nixfort-agent-rollback <id>` (0700, только root, не в sudoers). Повторный откат идемпотентен (блокировка файла снимка).

@@ -4,12 +4,13 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
   <div><h1 class="h3 mb-1">{{ project.name }} <span class="badge text-bg-{{ project.status|status_class }} fs-6">{{ project.get_status_display }}</span></h1>
     <div class="text-muted small">{{ project.description }}</div>
-    <div class="mono small">Подсети: {{ project.cidrs|join:", " }} · контроллер {{ project.controller_ip }}</div></div>
+    <div class="mono small">Подсети: {{ project.cidrs|join:", " }} · контроллер {{ project.controller_ip }}{% if project.admin_sources %} · администраторы {{ project.admin_sources|join:", " }}{% endif %}</div></div>
   <div class="btn-group">
     {% if can_edit %}<a class="btn btn-outline-secondary" href="{% url 'inventory:project_edit' project.id %}">Изменить</a>{% endif %}
     <a class="btn btn-outline-secondary" href="{% url 'policy:overview' project.id %}">Политика соединений</a>
     <a class="btn btn-outline-secondary" href="{% url 'checks:run_list' project.id %}">Аудит</a>
     <a class="btn btn-outline-secondary" href="{% url 'remediation:plan_list' project.id %}">Исправления</a>
+    <a class="btn btn-outline-secondary" href="{% url 'policy:connectivity' project.id %}">Сетевые тесты</a>
     <a class="btn btn-outline-secondary" href="{% url 'inventory:portscan_list' project.id %}">Сканирование</a>
     <a class="btn btn-outline-secondary" href="{% url 'execution:job_list' project.id %}">Задания</a>
   </div>

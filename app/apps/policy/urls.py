@@ -10,4 +10,6 @@ urlpatterns = [
     path("projects/<uuid:project_id>/policy/flows/<uuid:flow_id>/", views.flow_edit, name="flow_edit"),
     path("projects/<uuid:project_id>/policy/flows/<uuid:flow_id>/delete/", views.flow_delete, name="flow_delete"),
     path("projects/<uuid:project_id>/policy/activate/", views.activate, name="activate"),
+    path("projects/<uuid:project_id>/connectivity/", views.connectivity, name="connectivity"),
+    path("projects/<uuid:project_id>/connectivity/run/", views.connectivity_run, name="connectivity_run"),
 ]

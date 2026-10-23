@@ -9,10 +9,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.checks.tests.test_engine import FX
-from apps.execution import services
 from apps.execution.agent_client import AgentResponse
-from apps.execution.models import Job, JobState, JobType
-from apps.inventory.models import HostKey, InventorySnapshot
+from apps.execution.models import Job, JobState
+from apps.inventory.models import InventorySnapshot
 from apps.remediation import orchestrator, planner
 from apps.remediation.models import ItemState, PlanState, RemediationPlan
 
@@ -98,34 +97,6 @@ class FakeNode:
                 self.ssh = prev if kind == "ssh" else self.ssh
             return ok({"rolled_back": self.behaviour.get("timer_works", True)})
         raise AssertionError(action)
-
-
-@pytest.fixture
-def lab(project, lab_nodes, admin):
-    for n in lab_nodes.values():
-        HostKey.objects.create(
-            node=n,
-            key_type="ssh-ed25519",
-            public_key="AAAA",
-            fingerprint_sha256="x",
-            confirmed_by=admin,
-            confirmed_at=timezone.now(),
-        )
-    return lab_nodes
-
-
-@pytest.fixture
-def baseline_run(project, lab, operator, monkeypatch):
-    def collect(node, job=None, log=None):
-        facts = json.loads((Path(FX) / f"lab_{node.name.replace('nx-', '')}_baseline.json").read_text("utf-8"))
-        return InventorySnapshot.objects.create(
-            node=node, job=job, collected_at=timezone.now(), facts=facts, agent_version="1.0.0", sha256="0" * 64
-        )
-
-    monkeypatch.setattr("apps.inventory.collector.collect_node", collect)
-    job = services.create_job(JobType.AUDIT, project, operator)
-    job.refresh_from_db()
-    return job.audit_run
 
 
 def test_planner_from_real_lab_baseline(baseline_run, operator):

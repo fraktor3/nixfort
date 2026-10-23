@@ -17,7 +17,12 @@ from apps.core.models import Action
 from .models import RemediationItem, RemediationPlan
 
 RISK_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
-SUPPORTED_NOW = {"pkg.install_security_tool.v1", "fail2ban.apply_sshd_profile.v1", "ssh.apply_hardening_profile.v1"}
+SUPPORTED_NOW = {
+    "pkg.install_security_tool.v1",
+    "fail2ban.apply_sshd_profile.v1",
+    "ssh.apply_hardening_profile.v1",
+    "nft.apply_policy.v1",
+}
 # Default hardening values (CHECKS_CATALOG expectations).
 SSH_PROFILE = {"permit_root_login": "no", "max_auth_tries": 4, "login_grace_time_s": 60, "x11_forwarding": False}
 F2B_PROFILE = {"maxretry": 5, "bantime_s": 600, "findtime_s": 600}
@@ -38,6 +43,92 @@ class Draft:
 def _facts(run: AuditRun, node) -> dict:
     snap = node.snapshots.filter(job=run.job).first() or node.snapshots.first()
     return snap.facts if snap else {}
+
+
+def nft_params(project, policy, gateway) -> dict:
+    """Agent parameters of nft.apply_policy.v1 from the active flow policy. Only ALLOW flows become rules:
+    DENY is enforced by `policy drop` and is proven by probes. Order is canonical (same policy -> same hash)."""
+    forward, inbound = [], []
+    for f in policy.flows.filter(action="ALLOW").order_by("dst_ip", "port", "src_cidr"):
+        if f.dst_node_id == gateway.id:
+            rule = {"src": f.src_cidr, "port": f.port}
+            if rule not in inbound:
+                inbound.append(rule)
+        else:
+            rule = {"src": f.src_cidr, "dst": f.dst_ip, "port": f.port}
+            if rule not in forward:
+                forward.append(rule)
+    return {
+        "policy_version": policy.version,
+        "management_sources": project.management_sources,
+        "forward_allow": forward,
+        "input_allow": inbound,
+        "rollback_timeout_s": settings.NIXFORT_ROLLBACK_TIMEOUT_S,
+    }
+
+
+def rules_sha256(params: dict) -> str:
+    """Same canonical hash as the agent writes into the table comment (agent: actions/nft.py)."""
+    canon = {k: params[k] for k in ("policy_version", "management_sources", "forward_allow", "input_allow")}
+    return hashlib.sha256(json.dumps(canon, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _nft_drafts(run: AuditRun, node, ids: set[str], packages: dict, facts: dict) -> tuple[list[Draft], list[dict]]:
+    from apps.policy.models import FlowPolicyVersion
+
+    fw = sorted(ids & {"FW-02", "FW-03", "FW-04"})
+    if not fw and "FW-01" not in ids:
+        return [], []
+    drafts: list[Draft] = []
+    miss = lambda cid, why: {"node": node.name, "check_id": cid, "reason": why}  # noqa: E731
+    nft = (facts.get("nft") or {}).get("result") or {}
+    conflict = nft.get("conflict") or {}
+    services = ((facts.get("system") or {}).get("result") or {}).get("services") or {}
+    conflicting = (
+        services.get("ufw") == "active"
+        or services.get("firewalld") == "active"
+        or conflict.get("ufw")
+        or conflict.get("firewalld")
+        or conflict.get("docker")
+        or conflict.get("foreign_base_chains")
+    )
+    if conflicting:
+        why = "Другой менеджер правил (UFW, firewalld, Docker или чужие цепочки) — устраняется вручную"
+        return [], [miss(c, why) for c in sorted(ids & {"FW-01", "FW-02", "FW-03", "FW-04"})]
+    policy = FlowPolicyVersion.objects.filter(project=node.project, status="ACTIVE").first()
+    if policy is None:
+        return [], [miss(c, "Нет активной политики соединений") for c in fw]
+    if not node.has_role("gateway"):
+        return [], [miss(c, "Политика применяется только на узле с ролью «шлюз»") for c in fw]
+    if not packages.get("nftables"):
+        drafts.append(
+            Draft(
+                node,
+                0,
+                ["FW-01"],
+                "pkg.install_security_tool.v1",
+                {"package": "nftables"},
+                "LOW",
+                False,
+                "Установить nftables из репозитория дистрибутива",
+            )
+        )
+    params = nft_params(node.project, policy, node)
+    if len(params["forward_allow"]) > 200 or len(params["input_allow"]) > 20:
+        return [], [miss(c, "Слишком много разрешающих потоков для одного шлюза") for c in fw]
+    flows = list(policy.flows.all())
+    if any(f.action == "ALLOW" and f.critical and f.probe_from_id is None for f in flows):
+        why = "У критичного разрешающего потока не задан тестовый узел — сохранность доступа нельзя проверить"
+        return [], [miss(c, why) for c in fw]
+    unprobed = sum(1 for f in flows if f.probe_from_id is None)
+    allowed = len(params["forward_allow"]) + len(params["input_allow"])
+    desc = (
+        f"Межсетевой экран по политике v{policy.version}: разрешить {allowed} поток(ов), остальной транзит "
+        f"запрещён; SSH к шлюзу — только с {', '.join(params['management_sources'])}. "
+        f"Проверка пробами до/после ({len(flows) - unprobed} из {len(flows)} потоков)"
+    )
+    drafts.append(Draft(node, 4, fw or ["FW-02"], "nft.apply_policy.v1", params, "HIGH", True, desc[:300]))
+    return drafts, []
 
 
 def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[dict]]:
@@ -125,6 +216,10 @@ def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[di
                 }
             )
 
+        fw_drafts, fw_missing = _nft_drafts(run, node, ids, packages, facts)
+        drafts += fw_drafts
+        not_covered += fw_missing
+
         covered = {c for d in drafts if d.node == node for c in d.check_ids}
         for cid in sorted(ids - covered):
             reason = {
@@ -132,7 +227,7 @@ def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[di
                 "SYS-02": "Синхронизация времени — только рекомендация",
                 "SYS-03": "Системный журнал — только рекомендация",
                 "SYS-04": "Лишние службы отключаются вручную (или запрещаются политикой на шлюзе)",
-            }.get(cid, "Исправление появится на следующем этапе (nftables, Suricata)")
+            }.get(cid, "Исправление появится на следующем этапе (Suricata)")
             if not any(n["node"] == node.name and n["check_id"] == cid for n in not_covered):
                 not_covered.append({"node": node.name, "check_id": cid, "reason": reason})
     drafts.sort(key=lambda d: (d.order_key, d.node.name))

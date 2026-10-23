@@ -17,6 +17,16 @@
   <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="confirm" id="confirm"><label class="form-check-label" for="confirm">Я проверил шаги и риски. Изменения будут применены на узлах с автоматическим откатом при сбое.</label></div>
   <div class="d-flex gap-2"><button class="btn btn-warning">Утвердить и выполнить</button></div></form>{% endif %}
 {% if can_reject %}<form method="post" action="{% url 'remediation:plan_reject' project.id plan.id %}" class="mt-2">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary">Отклонить план</button></form>{% endif %}
+{% if probe_matrix %}<h2 class="h5 mt-4">Пробы соединений (межсетевой экран)</h2>
+<p class="small text-muted">TCP-подключения с тестового узла по каждому потоку политики. Блокировка считается доказанной, только если до изменения соединение было открыто.</p>
+<table class="table table-sm align-middle"><thead><tr><th>Поток</th><th>Ожидание</th><th>Источник → назначение</th><th>До изменения</th><th>После изменения</th><th>После отката</th></tr></thead><tbody>
+{% for r in probe_matrix %}<tr><td>{{ r.name }}{% if r.critical %} <span class="badge text-bg-warning">критичный</span>{% endif %}</td>
+  <td><span class="badge text-bg-{% if r.action == 'ALLOW' %}success{% else %}danger{% endif %}">{% if r.action == 'ALLOW' %}работает{% else %}заблокирован{% endif %}</span></td>
+  <td class="mono small">{{ r.src }} → {{ r.dst }}<div class="text-muted">с {{ r.probe|default:"—" }}</div></td>
+  {% for ph in "BASELINE POST AFTER_ROLLBACK"|split %}{% with t=r.phases|get_item:ph %}<td>{% if t %}<span class="mono small">{{ t.result }}</span>
+    {% if ph != "BASELINE" %}<span class="badge text-bg-{% if t.verdict == 'OK' %}success{% elif t.verdict == 'VIOLATION' %}danger{% else %}secondary{% endif %}">{{ t.get_verdict_display }}</span>{% endif %}
+    <div class="small text-muted">{% if ph != "BASELINE" %}{{ t.note }}{% endif %}</div>{% else %}<span class="text-muted">—</span>{% endif %}</td>{% endwith %}{% endfor %}</tr>
+{% endfor %}</tbody></table>{% endif %}
 {% if before_after %}<h2 class="h5 mt-4">До / после</h2>
 <table class="table table-sm"><thead><tr><th>Узел</th><th>Проверка</th><th>До</th><th>После</th></tr></thead><tbody>
 {% for r in before_after %}<tr {% if r.changed %}class="table-active"{% endif %}><td>{{ r.node }}</td><td><span class="mono small">{{ r.check_id }}</span> {{ r.title }}</td>

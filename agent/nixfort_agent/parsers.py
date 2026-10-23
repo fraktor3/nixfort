@@ -160,7 +160,7 @@ def parse_int_value(text: str) -> int | None:
 
 # --- nft -j list ruleset -----------------------------------------------------------------
 
-_META = re.compile(r"policy_version=(\d+)\s+plan_hash=([0-9a-f]{64})")
+_META = re.compile(r"policy_version=(\d+)\s+(?:plan_hash|rules_sha256)=([0-9a-f]{64})")
 
 
 def parse_nft_ruleset(text: str, own_table: str = "nixfort") -> dict[str, Any]:
@@ -204,7 +204,7 @@ def parse_nft_ruleset(text: str, own_table: str = "nixfort") -> dict[str, Any]:
     if own_comment:
         m = _META.search(own_comment)
         if m:
-            meta = {"policy_version": int(m.group(1)), "plan_hash": m.group(2)}
+            meta = {"policy_version": int(m.group(1)), "rules_sha256": m.group(2)}
     return {
         "tables": tables,
         "nixfort_table_present": own_present,

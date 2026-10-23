@@ -146,7 +146,7 @@ class ParserTests(unittest.TestCase):
         }
         r = parsers.parse_nft_ruleset(json.dumps(rs))
         self.assertTrue(r["nixfort_table_present"])
-        self.assertEqual(r["policy_meta"], {"policy_version": 3, "plan_hash": "a" * 64})
+        self.assertEqual(r["policy_meta"], {"policy_version": 3, "rules_sha256": "a" * 64})
         self.assertEqual(r["nixfort_chains"]["forward"]["policy"], "drop")
         self.assertEqual(r["nixfort_input_ssh_sources"], ["10.77.0.10"])
         self.assertEqual(r["conflict"]["foreign_base_chains"], ["ip filter INPUT"])

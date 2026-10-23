@@ -56,3 +56,13 @@ def add_class(field, css: str):
 @register.filter
 def widget_type(field) -> str:
     return field.field.widget.__class__.__name__
+
+
+@register.filter
+def split(value: str) -> list[str]:
+    return str(value).split()
+
+
+@register.filter
+def get_item(mapping, key):
+    return mapping.get(key) if isinstance(mapping, dict) else None

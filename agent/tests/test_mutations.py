@@ -14,13 +14,28 @@ from nixfort_agent.runner import RunResult
 from .helpers import make_ctx, ok, request
 
 SSHD_CONFIG = "Include /etc/ssh/sshd_config.d/*.conf\nPort 22\n"
+NFT_CONF = "#!/usr/sbin/nft -f\n\nflush ruleset\n\ntable inet filter {\n}\n"
 
 
 class FakeSystem:
     """Simulates systemd timers, sshd -t, fail2ban-client and apt for the agent."""
 
-    def __init__(self, sshd_valid=True, arm_ok=True, reload_ok=True, f2b_valid=True, sshd_t_seq=None):
+    def __init__(
+        self,
+        sshd_valid=True,
+        arm_ok=True,
+        reload_ok=True,
+        f2b_valid=True,
+        sshd_t_seq=None,
+        nft_valid=True,
+        nft_ruleset=None,
+        nft_enabled=False,
+    ):
         self.sshd_t_seq = list(sshd_t_seq or [])
+        self.nft_valid, self.nft_enabled = nft_valid, nft_enabled
+        self.nft_ruleset = nft_ruleset or {"nftables": []}
+        self.nft_table: str | None = None  # text of the file last loaded with `nft -f`
+        self.nft_events: list[str] = []
         self.timers: set[str] = set()
         self.calls: list[list[str]] = []
         self.sshd_valid, self.arm_ok, self.reload_ok, self.f2b_valid = sshd_valid, arm_ok, reload_ok, f2b_valid
@@ -43,6 +58,12 @@ class FakeSystem:
             if a[0] == "stop":
                 self.timers.discard(a[1])
                 return ok()
+            if a[0] == "is-enabled":
+                return ok("enabled\n" if self.nft_enabled else "disabled\n")
+            if a[0] in ("enable", "disable") and a[1] == "nftables.service":
+                self.nft_enabled = a[0] == "enable"
+                self.nft_events.append(a[0])
+                return ok()
             if a[0] in ("try-reload-or-restart", "restart"):
                 self.reloads += 1
                 return ok() if self.reload_ok else RunResult(1, "", "failed", False)
@@ -59,6 +80,22 @@ class FakeSystem:
             if a == ["-t"]:
                 return ok("OK") if self.f2b_valid else RunResult(255, "", "ERROR bad jail", False)
             return ok("pong")
+        if name == "nft":
+            if a[:2] == ["-c", "-f"]:
+                return ok() if self.nft_valid else RunResult(1, "", "Error: syntax error", False)
+            if a[0] == "-f":
+                with open(a[1]) as fh:
+                    self.nft_table = fh.read()
+                self.nft_events.append("load")
+                return ok()
+            if a[:3] == ["-j", "list", "ruleset"]:
+                return ok(json.dumps(self.nft_ruleset))
+            if a[:2] == ["list", "table"]:
+                return ok(self.nft_table) if self.nft_table else RunResult(1, "", "No such file", False)
+            if a[:2] == ["delete", "table"]:
+                self.nft_table = None
+                self.nft_events.append("delete")
+                return ok()
         if name == "apt-get":
             return ok()
         if name == "dpkg-query":
@@ -76,6 +113,8 @@ class Env:
             sshd_owned=f"{root}/sshd_config.d/00-nixfort.conf",
             sshd_privsep_dir=root,
             f2b_owned=f"{root}/jail.d/nixfort-sshd.local",
+            nft_owned=f"{root}/nftables.d/nixfort.nft",
+            nft_conf=f"{root}/nftables.conf",
         )
         # every tool resolves to an existing "executable" so os.access checks pass
         bins = {k: (f"{root}/bin/{os.path.basename(v[0])}",) for k, v in UBUNTU_2404.bins.items()}
@@ -85,7 +124,10 @@ class Env:
             os.chmod(p, 0o755)
         self.profile = replace(UBUNTU_2404, paths=paths, bins=bins)
         self.sys = FakeSystem(**fs_kw)
-        self.files = {"/etc/ssh/sshd_config": SSHD_CONFIG}
+        self.files = {"/etc/ssh/sshd_config": SSHD_CONFIG, "/proc/sys/net/ipv4/ip_forward": "1\n"}
+        with open(paths["nft_conf"], "w") as fh:
+            fh.write(NFT_CONF)
+        self.files[paths["nft_conf"]] = NFT_CONF
 
     def _access(self, path, mode, _real=os.access):
         # /tmp in the controller container is a noexec tmpfs, where access(X_OK)
@@ -252,6 +294,99 @@ class PkgTests(unittest.TestCase):
         self.assertEqual(apt[-2:], ["fail2ban", "python3-systemd"])
         for bad in ("netcat", "fail2ban; rm -rf /", "../suricata"):
             self.assertEqual(e.call("pkg.install_security_tool.v1", {"package": bad})["state"], "REJECTED")
+
+
+NFT_PARAMS = {
+    "policy_version": 2,
+    "management_sources": ["10.77.0.10"],
+    "forward_allow": [{"src": "10.88.0.0/24", "dst": "10.99.0.10", "port": 80}],
+    "input_allow": [],
+    "rollback_timeout_s": 90,
+}
+
+
+class NftPolicyTests(unittest.TestCase):
+    def test_apply_commit(self):
+        e = Env()
+        r = e.call("nft.apply_policy.v1", NFT_PARAMS)
+        self.assertEqual(r["state"], "OK", r)
+        owned = open(e.profile.paths["nft_owned"]).read()
+        self.assertIn("ip saddr 10.88.0.0/24 ip daddr 10.99.0.10 tcp dport 80 accept", owned)
+        self.assertIn("ip saddr { 10.77.0.10 } tcp dport 22 accept", owned)
+        conf = open(e.profile.paths["nft_conf"]).read()
+        self.assertTrue(conf.startswith(NFT_CONF.rstrip("\n")))
+        self.assertEqual(conf.count('include "/etc/nftables.d/*.nft"'), 1)
+        self.assertEqual(e.sys.nft_events, ["load", "enable"])
+        self.assertEqual(e.sys.nft_table, owned)
+        sid = r["result"]["snapshot_id"]
+        self.assertIn(f"nixfort-rb-{sid}.timer", e.sys.timers)
+        names = [os.path.basename(c[0]) + ":" + c[1] for c in e.sys.calls]
+        self.assertLess(names.index("systemd-run:--unit=nixfort-rb-" + sid), names.index("nft:-f"))
+        self.assertEqual(e.call("mutation.commit.v1", {"snapshot_id": sid})["result"]["committed"], True)
+        # second apply: include is not duplicated
+        self.assertEqual(e.call("nft.apply_policy.v1", {**NFT_PARAMS, "policy_version": 3})["state"], "OK")
+        self.assertEqual(open(e.profile.paths["nft_conf"]).read().count("nftables.d"), 1)
+
+    def test_rollback_from_nothing_removes_table_and_restores_conf(self):
+        e = Env()
+        sid = e.call("nft.apply_policy.v1", NFT_PARAMS)["result"]["snapshot_id"]
+        rb = e.call("mutation.rollback_now.v1", {"snapshot_id": sid})
+        self.assertTrue(rb["result"]["rolled_back"], rb)
+        self.assertFalse(os.path.exists(e.profile.paths["nft_owned"]))
+        self.assertEqual(open(e.profile.paths["nft_conf"]).read(), NFT_CONF)
+        self.assertIsNone(e.sys.nft_table)
+        self.assertEqual(e.sys.nft_events, ["load", "enable", "delete", "disable"])  # never `stop`
+        self.assertFalse(any(c[1:3] == ["stop", "nftables.service"] for c in e.sys.calls))
+
+    def test_rollback_to_previous_version_reloads_it(self):
+        e = Env(nft_enabled=True)
+        first = e.call("nft.apply_policy.v1", NFT_PARAMS)["result"]["snapshot_id"]
+        e.call("mutation.commit.v1", {"snapshot_id": first})
+        v1 = e.sys.nft_table
+        sid = e.call("nft.apply_policy.v1", {**NFT_PARAMS, "policy_version": 3})["result"]["snapshot_id"]
+        self.assertNotEqual(e.sys.nft_table, v1)
+        e.call("mutation.rollback_now.v1", {"snapshot_id": sid})
+        self.assertEqual(e.sys.nft_table, v1)
+        self.assertNotIn("disable", e.sys.nft_events)  # service was enabled before: left enabled
+
+    def test_invalid_candidate_nothing_loaded(self):
+        e = Env(nft_valid=False)
+        r = e.call("nft.apply_policy.v1", NFT_PARAMS)
+        self.assertEqual((r["state"], r["error_code"]), ("FAILED", "validation_failed"))
+        self.assertFalse(os.path.exists(e.profile.paths["nft_owned"]))
+        self.assertEqual(open(e.profile.paths["nft_conf"]).read(), NFT_CONF)
+        self.assertEqual(e.sys.nft_events, [])
+        self.assertEqual(e.sys.timers, set())
+
+    def test_conflicts_refused_before_any_change(self):
+        foreign = {
+            "nftables": [
+                {"chain": {"family": "ip", "table": "filter", "name": "FORWARD", "hook": "forward", "policy": "drop"}}
+            ]
+        }
+        cases = [Env(nft_ruleset=foreign), Env()]
+        cases[1].files["/proc/sys/net/ipv4/ip_forward"] = "0\n"
+        for e in cases:
+            r = e.call("nft.apply_policy.v1", NFT_PARAMS)
+            self.assertEqual((r["state"], r["error_code"]), ("REJECTED", "conflict"), r)
+            self.assertFalse(os.path.exists(e.profile.paths["nft_owned"]))
+            self.assertEqual(e.sys.nft_events, [])
+
+    def test_injection_and_limits(self):
+        e = Env()
+        rule = NFT_PARAMS["forward_allow"][0]
+        for bad in (
+            {**NFT_PARAMS, "forward_allow": [{**rule, "src": "10.88.0.0/24 accept; flush ruleset"}]},
+            {**NFT_PARAMS, "forward_allow": [{**rule, "dst": "10.99.0.0/24"}]},
+            {**NFT_PARAMS, "forward_allow": [{**rule, "port": 0}]},
+            {**NFT_PARAMS, "forward_allow": [{**rule, "action": "accept"}]},
+            {**NFT_PARAMS, "management_sources": []},
+            {**NFT_PARAMS, "management_sources": ["10.77.0.0/24"]},
+            {**NFT_PARAMS, "input_allow": [{"src": "0.0.0.0/0", "port": "22 accept"}]},
+            {**NFT_PARAMS, "forward_allow": [rule] * 201},
+        ):
+            self.assertEqual(e.call("nft.apply_policy.v1", bad)["state"], "REJECTED", bad)
+        self.assertEqual(e.sys.nft_events, [])
 
 
 class RollbackLauncherTests(unittest.TestCase):

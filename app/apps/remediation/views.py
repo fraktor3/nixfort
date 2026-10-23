@@ -41,6 +41,7 @@ def plan_detail(request, project_id, plan_id):
     )
     items = plan.items.select_related("node")
     before_after = _before_after(plan)
+    probe_matrix = _probe_matrix(plan)
     return render(
         request,
         "remediation/plan_detail.html",
@@ -49,6 +50,7 @@ def plan_detail(request, project_id, plan_id):
             "plan": plan,
             "items": items,
             "before_after": before_after,
+            "probe_matrix": probe_matrix,
             "can_approve": has_perm(request.user, Perm.APPROVE_PLAN, request.project)
             and plan.state == PlanState.DRAFT
             and items.exists()
@@ -56,6 +58,29 @@ def plan_detail(request, project_id, plan_id):
             "can_reject": has_perm(request.user, Perm.CREATE_PLAN, request.project) and plan.state == PlanState.DRAFT,
         },
     )
+
+
+def _probe_matrix(plan):
+    """Firewall steps: one row per flow, columns = probe phases (before / after / after rollback)."""
+    from apps.policy.models import ConnectivityTest
+
+    rows: dict = {}
+    for t in ConnectivityTest.objects.filter(plan_item__plan=plan).order_by("created_at"):
+        key = (t.plan_item_id, t.action, t.src_cidr, t.dst_ip, t.port)
+        row = rows.setdefault(
+            key,
+            {
+                "name": t.flow_name,
+                "action": t.action,
+                "critical": t.critical,
+                "src": t.src_cidr,
+                "dst": f"{t.dst_ip}:{t.port}",
+                "probe": t.probe_node,
+                "phases": {},
+            },
+        )
+        row["phases"][t.phase] = t
+    return list(rows.values())
 
 
 def _before_after(plan):

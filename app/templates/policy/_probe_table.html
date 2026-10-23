@@ -1,0 +1,10 @@
+<table class="table table-sm align-middle"><thead><tr><th>Поток</th><th>Ожидание</th><th>Источник → назначение</th><th>Проба с</th><th>Результат</th><th>Вывод</th></tr></thead><tbody>
+{% for r in rows %}<tr>
+  <td>{{ r.flow_name }}{% if r.critical %} <span class="badge text-bg-warning">критичный</span>{% endif %}</td>
+  <td><span class="badge text-bg-{% if r.action == 'ALLOW' %}success{% else %}danger{% endif %}">{% if r.action == 'ALLOW' %}работает{% else %}заблокирован{% endif %}</span></td>
+  <td class="mono small">{{ r.src_cidr }} → {{ r.dst_ip }}:{{ r.port }}</td>
+  <td class="small">{{ r.probe_node|default:"—" }}</td>
+  <td class="mono small">{{ r.result }}{% if r.latency_ms is not None %} · {{ r.latency_ms }} мс{% endif %}</td>
+  <td><span class="badge text-bg-{% if r.verdict == 'OK' %}success{% elif r.verdict == 'VIOLATION' %}danger{% else %}secondary{% endif %}">{{ r.get_verdict_display }}</span>
+    <div class="small text-muted">{{ r.note }}</div></td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">Проб нет.</td></tr>{% endfor %}</tbody></table>

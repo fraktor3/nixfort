@@ -34,7 +34,7 @@ class ItemOutcome(Exception):
 
 
 # ---------------------------------------------------------------- verification per action
-def _verify_pkg(client: AgentClient, item: RemediationItem) -> tuple[bool, str, dict]:
+def _verify_pkg(client: AgentClient, item: RemediationItem, env: dict | None = None) -> tuple[bool, str, dict]:
     r = client.call("system.collect_facts.v1")
     if not r.ok:
         return False, f"нет данных после установки ({r.state} {r.error_code})", r.as_fact()
@@ -42,7 +42,7 @@ def _verify_pkg(client: AgentClient, item: RemediationItem) -> tuple[bool, str, 
     return bool(version), (f"установлен {version}" if version else "пакет не обнаружен"), {"version": version}
 
 
-def _verify_f2b(client: AgentClient, item: RemediationItem) -> tuple[bool, str, dict]:
+def _verify_f2b(client: AgentClient, item: RemediationItem, env: dict | None = None) -> tuple[bool, str, dict]:
     r = client.call("fail2ban.read_status.v1")
     if not r.ok:
         return False, f"состояние не получено ({r.state} {r.error_code})", r.as_fact()
@@ -58,7 +58,7 @@ def _verify_f2b(client: AgentClient, item: RemediationItem) -> tuple[bool, str, 
     return bool(ok), ("jail sshd активен с параметрами профиля" if ok else f"фактически: {s}"), {"sshd": s}
 
 
-def _verify_ssh(client: AgentClient, item: RemediationItem) -> tuple[bool, str, dict]:
+def _verify_ssh(client: AgentClient, item: RemediationItem, env: dict | None = None) -> tuple[bool, str, dict]:
     r = client.call("ssh.read_effective_config.v1")  # new SSH session = management access survived
     if not r.ok:
         return False, f"нет нового SSH-соединения или данных ({r.state} {r.error_code})", r.as_fact()
@@ -82,11 +82,105 @@ def _verify_ssh(client: AgentClient, item: RemediationItem) -> tuple[bool, str, 
     )
 
 
-VERIFY: dict[str, Callable[[AgentClient, RemediationItem], tuple[bool, str, dict]]] = {
+# ---------------------------------------------------------------- firewall: table facts + TCP probes
+def _nft_probe(item: RemediationItem, env: dict, phase: str) -> list:
+    from apps.policy import connectivity
+    from apps.policy.models import FlowPolicyVersion
+
+    policy = FlowPolicyVersion.objects.get(project=item.plan.project_id, version=item.params["policy_version"])
+    probes = connectivity.run_probes(connectivity.policy_flows(policy), env["client_factory"])
+    baseline = None
+    if phase != "BASELINE":
+        stored = item.result.get("baseline") or {}
+        baseline = {p.flow.id: stored.get(str(p.flow.id), "NOT_RUN") for p in probes}
+    rows = connectivity.record(
+        probes,
+        project=item.plan.project,
+        policy=policy,
+        phase=phase,
+        job=env.get("job"),
+        plan_item=item,
+        baseline=baseline,
+    )
+    for r in rows:
+        env["log"](
+            f"проба {phase}: {r.action} {r.src_cidr} → {r.dst_ip}:{r.port} = {r.result} ({r.get_verdict_display()})",
+            "INFO",
+        )
+    return rows
+
+
+def _verify_nft(client: AgentClient, item: RemediationItem, env: dict | None = None) -> tuple[bool, str, dict]:
+    from apps.policy import connectivity
+
+    from .planner import rules_sha256
+
+    r = client.call("nft.inspect.v1")  # new SSH session = management access to the gateway survived
+    if not r.ok:
+        return False, f"нет нового SSH-соединения со шлюзом или данных ({r.state} {r.error_code})", r.as_fact()
+    p = item.params
+    meta = r.result.get("policy_meta") or {}
+    chains = r.result.get("nixfort_chains") or {}
+    sources = r.result.get("nixfort_input_ssh_sources") or []
+    problems = []
+    if meta.get("policy_version") != p["policy_version"] or meta.get("rules_sha256") != rules_sha256(p):
+        problems.append(f"в ядре не та версия правил ({meta})")
+    if (chains.get("forward") or {}).get("policy") != "drop":
+        problems.append("у цепочки forward нет policy drop")
+    missing = [ip for ip in p["management_sources"] if ip not in sources]
+    if missing:
+        problems.append(f"нет разрешения SSH для {', '.join(missing)}")
+    evidence = {"policy_meta": meta, "chains": chains, "ssh_sources": sources}
+    if problems:
+        return False, "; ".join(problems), evidence
+    rows = _nft_probe(item, env, "POST")
+    bad = connectivity.blocking_violations(rows)
+    evidence["probes"] = [
+        {"flow": f"{x.action} {x.dst_ip}:{x.port}", "result": x.result, "verdict": x.verdict} for x in rows
+    ]
+    if bad:
+        return (
+            False,
+            "нарушены ожидания политики: "
+            + "; ".join(f"{x.action} {x.src_cidr} → {x.dst_ip}:{x.port} = {x.result} ({x.note})" for x in bad),
+            evidence,
+        )
+    ok_n = sum(1 for x in rows if x.verdict == "OK")
+    return True, f"правила v{p['policy_version']} в ядре, пробы: {ok_n} из {len(rows)} соответствуют", evidence
+
+
+VERIFY: dict[str, Callable[..., tuple[bool, str, dict]]] = {
     "pkg.install_security_tool.v1": _verify_pkg,
     "fail2ban.apply_sshd_profile.v1": _verify_f2b,
     "ssh.apply_hardening_profile.v1": _verify_ssh,
+    "nft.apply_policy.v1": _verify_nft,
 }
+
+
+def _after_rollback(item: RemediationItem, env: dict) -> tuple[bool, str]:
+    """Firewall: prove with probes that critical ALLOW flows work again after the rollback."""
+    if item.action_id != "nft.apply_policy.v1":
+        return True, ""
+    rows = _nft_probe(item, env, "AFTER_ROLLBACK")
+    broken = [r for r in rows if r.action == "ALLOW" and r.critical and r.result != "OPEN"]
+    if broken:
+        return False, "после отката критичные соединения не восстановлены: " + ", ".join(
+            f"{r.dst_ip}:{r.port}={r.result}" for r in broken
+        )
+    return True, "после отката критичные соединения снова работают (подтверждено пробами)"
+
+
+def _precheck_nft(item: RemediationItem, env: dict) -> None:
+    from apps.policy.models import FlowPolicyVersion
+
+    active = FlowPolicyVersion.objects.filter(project=item.plan.project_id, status="ACTIVE").first()
+    if active is None or active.version != item.params["policy_version"]:
+        raise ItemOutcome(
+            ItemState.FAILED, "активная политика изменилась после составления плана — составьте план заново"
+        )
+    rows = _nft_probe(item, env, "BASELINE")
+    item.result = {**item.result, "baseline": {str(r.flow_id): r.result for r in rows}}
+    item.save(update_fields=["result", "updated_at"])
 
 
 def _save(item: RemediationItem, state: str, **result: Any) -> None:
@@ -110,6 +204,10 @@ def run_item(job: Job, item: RemediationItem, log: Callable[[str, str], None], c
         if pre.os_profile not in ("ubuntu-24.04", "astra-1.8"):
             raise ItemOutcome(ItemState.FAILED, f"ОС не поддерживается ({pre.os_profile}) — изменения запрещены")
 
+        env = {"job": job, "client_factory": client_factory, "log": log}
+        if item.action_id == "nft.apply_policy.v1":
+            log(f"{node.name}: пробы соединений до изменения", "INFO")
+            _precheck_nft(item, env)
         _save(item, ItemState.APPLYING)
         log(f"{node.name}: {item.action_id} — применение", "INFO")
         resp = client.call(item.action_id, item.params, deadline_s=540 if item.action_id.startswith("pkg.") else 120)
@@ -120,13 +218,13 @@ def run_item(job: Job, item: RemediationItem, log: Callable[[str, str], None], c
             )
         if resp.state != "OK":
             # transport/protocol error during a mutation: we do not know what happened on the node
-            return _recover_unknown(item, resp, log, client_factory, sleep)
+            return _recover_unknown(item, resp, log, client_factory, sleep, env=env)
         sid = resp.result.get("snapshot_id", "")
         item.snapshot_id = sid
         _save(item, ItemState.VERIFYING, apply=resp.result)
 
         verify_client = client_factory(node)  # fresh client: every call is a new SSH connection
-        ok, why, evidence = VERIFY[item.action_id](verify_client, item)
+        ok, why, evidence = VERIFY[item.action_id](verify_client, item, env)
         log(f"{node.name}: постпроверка — {'OK' if ok else 'НЕ ПРОЙДЕНА'}: {why}", "INFO" if ok else "WARN")
         if not item.reversible:
             if ok:
@@ -142,24 +240,33 @@ def run_item(job: Job, item: RemediationItem, log: Callable[[str, str], None], c
                 raise ItemOutcome(
                     ItemState.ROLLED_BACK, "таймер отката сработал раньше подтверждения — изменение отменено узлом"
                 )
-            return _recover_unknown(item, c, log, client_factory, sleep)
+            return _recover_unknown(item, c, log, client_factory, sleep, env=env)
         # verification failed -> roll back now, then prove the rollback
-        return _rollback(item, why, log, client_factory, sleep)
+        return _rollback(item, why, log, client_factory, sleep, env=env)
 
 
-def _rollback(item, why, log, client_factory, sleep) -> str:
+def _rolled_back(item, why: str, rollback: dict, env: dict | None, message: str) -> None:
+    """The node reports the rollback; for the firewall it is additionally proven by probes."""
+    proven, note = _after_rollback(item, env) if env else (True, "")
+    if not proven:
+        _save(item, ItemState.UNKNOWN, reason=why, rollback=rollback, after_rollback=note)
+        raise ItemOutcome(ItemState.UNKNOWN, f"{message}; {note} — требуется ручная проверка")
+    _save(item, ItemState.ROLLED_BACK, reason=why, rollback=rollback, after_rollback=note)
+    raise ItemOutcome(ItemState.ROLLED_BACK, f"{message}" + (f"; {note}" if note else ""))
+
+
+def _rollback(item, why, log, client_factory, sleep, env=None) -> str:
     log(f"{item.node.name}: откат ({why})", "WARN")
     try:
         rb = client_factory(item.node).call("mutation.rollback_now.v1", {"snapshot_id": item.snapshot_id})
     except TransportError as exc:
         rb = AgentResponse(action="mutation.rollback_now.v1", state="TRANSPORT_ERROR", error_code=exc.code)
     if rb.ok and rb.result.get("rolled_back"):
-        _save(item, ItemState.ROLLED_BACK, reason=why, rollback=rb.result)
-        raise ItemOutcome(ItemState.ROLLED_BACK, f"постпроверка не пройдена ({why}); откат выполнен")
-    return _recover_unknown(item, rb, log, client_factory, sleep, reason=why)
+        _rolled_back(item, why, rb.result, env, f"постпроверка не пройдена ({why}); откат выполнен")
+    return _recover_unknown(item, rb, log, client_factory, sleep, reason=why, env=env)
 
 
-def _recover_unknown(item, resp, log, client_factory, sleep, reason: str = "") -> str:
+def _recover_unknown(item, resp, log, client_factory, sleep, reason: str = "", env=None) -> str:
     """Node did not answer during a mutation. Wait for the node-side timer, then ask again."""
     if not item.snapshot_id or not item.reversible:
         raise ItemOutcome(
@@ -175,8 +282,13 @@ def _recover_unknown(item, resp, log, client_factory, sleep, reason: str = "") -
     except TransportError as exc:
         st = AgentResponse(action="mutation.snapshot_status.v1", state="TRANSPORT_ERROR", error_code=exc.code)
     if st.ok and st.result.get("rolled_back"):
-        _save(item, ItemState.ROLLED_BACK, reason=reason or "потеря связи", rollback=st.result)
-        raise ItemOutcome(ItemState.ROLLED_BACK, "связь была потеряна; узел сам откатил изменение (подтверждено)")
+        _rolled_back(
+            item,
+            reason or "потеря связи",
+            st.result,
+            env,
+            "связь была потеряна; узел сам откатил изменение (подтверждено)",
+        )
     raise ItemOutcome(
         ItemState.UNKNOWN,
         "откат не подтверждён — требуется ручная проверка узла "

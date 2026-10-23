@@ -14,16 +14,24 @@ class ProjectForm(forms.ModelForm):
         max_length=500,
         help_text="Например: 10.77.0.0/24, 10.88.0.0/24, 10.99.0.0/24",
     )
+    admin_sources = forms.CharField(
+        label="Дополнительные адреса администраторов (SSH к шлюзу)",
+        required=False,
+        max_length=60,
+        help_text="До 3 IPv4. После применения политики межсетевого экрана SSH к шлюзу разрешён только "
+        "с адреса контроллера и с этих адресов. На стенде VirtualBox: 10.0.2.2 (проброс портов NAT).",
+    )
 
     class Meta:
         model = Project
-        fields = ["name", "description", "cidrs", "controller_ip"]
+        fields = ["name", "description", "cidrs", "controller_ip", "admin_sources"]
         widgets = {"description": forms.Textarea(attrs={"rows": 3})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
             self.initial["cidrs"] = ", ".join(self.instance.cidrs)
+            self.initial["admin_sources"] = ", ".join(self.instance.admin_sources or [])
 
     def clean_name(self):
         name = self.cleaned_data["name"].strip()
@@ -36,6 +44,12 @@ class ProjectForm(forms.ModelForm):
         if not 1 <= len(items) <= 16:
             raise ValidationError("Укажите от 1 до 16 подсетей.")
         return [v.parse_network(i) for i in items]
+
+    def clean_admin_sources(self):
+        items = v.split_list(self.cleaned_data.get("admin_sources") or "")
+        if len(items) > 3:
+            raise ValidationError("Не больше 3 адресов.")
+        return [v.parse_ipv4(i) for i in items]
 
 
 ROLE_LABELS = {

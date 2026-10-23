@@ -41,10 +41,10 @@ nixfort/
 │       ├── core/                 # общие enum, базовые модели, RBAC-хелперы, журнал действий (AuditEvent)
 │       ├── accounts/             # пользователи, роли, вход/выход, bootstrap-админ
 │       ├── inventory/            # Project, Node, HostKey, InventorySnapshot, Nmap-скан
-│       ├── policy/               # FlowPolicyVersion, Flow, валидация конфликтов
+│       ├── policy/               # FlowPolicyVersion, Flow, конфликты, ConnectivityTest + пробы (connectivity.py)
 │       ├── execution/            # Job, очереди, блокировки, SSH-транспорт, клиент агента, реестр действий
 │       ├── checks/               # каталог проверок, движок, AuditRun, CheckResult, Evidence
-│       ├── remediation/          # RemediationPlan/Item, оркестратор, ConfigSnapshotRef, ConnectivityTest
+│       ├── remediation/          # RemediationPlan/Item, планировщик, оркестратор
 │       ├── ids/                  # события Suricata
 │       ├── pcap/                 # загрузка и анализ PCAP
 │       └── reports/              # HTML/PDF/JSON отчёты
@@ -85,7 +85,7 @@ remediation ◄── reports
 |---|---|---|
 | accounts | User (django) + `RoleAssignment` | user, role ∈ {ADMIN, OPERATOR, VIEWER}, project (null = глобально) |
 | core | `AuditEvent` | actor, action, object_type, object_id, project, outcome, safe_metadata JSON, ts. **Только вставка**, update/delete запрещены на уровне модели |
-| inventory | `Project` | name, description, cidrs JSON[list[str]], controller_ip (ADR-022), status {ACTIVE, ARCHIVED} |
+| inventory | `Project` | name, description, cidrs JSON[list[str]], controller_ip (ADR-022), admin_sources JSON[≤3 IPv4] (ADR-035), status {ACTIVE, ARCHIVED} |
 | inventory | `Node` | project, name, mgmt_ip, data_ips JSON, ssh_port, roles JSON[list] ⊂ {gateway, server, ids_sensor, test_client}, expected_os, os_profile, expected_tcp_ports JSON, ids_interface, status {NEW, KEY_PENDING, READY, UNREACHABLE, UNSUPPORTED}, last_inventory_at |
 | inventory | `HostKey` | node, key_type, fingerprint_sha256, public_key, confirmed_by, confirmed_at |
 | inventory | `InventorySnapshot` | node, job, collected_at, facts JSON, agent_version, sha256. Неизменяем |
@@ -99,7 +99,7 @@ remediation ◄── reports
 | checks | `Evidence` | node, source (action_id), collected_at, content JSON (redacted), sha256 |
 | remediation | `RemediationPlan` | project, audit_run, created_by, state, risk {LOW, MEDIUM, HIGH}, plan_hash, approved_by, approved_at |
 | remediation | `RemediationItem` | plan, node, check_ids JSON, action_id, params JSON, order, state, snapshot_id (на узле), result JSON |
-| remediation | `ConnectivityTest` | plan, flow, phase {BASELINE, POST, AFTER_ROLLBACK}, result {OPEN, CLOSED, UNREACHABLE, ERROR}, latency_ms, evidence |
+| policy | `ConnectivityTest` | project, job, plan_item?, phase {CHECK, BASELINE, POST, AFTER_ROLLBACK}, копия потока (версия, src, dst, порт, действие, критичность), probe_node, result {OPEN, CLOSED, TIMEOUT, UNREACHABLE, ERROR, NOT_RUN}, latency_ms, verdict {OK, VIOLATION, UNPROVABLE, NOT_CHECKED}, note |
 | ids | `IdsEvent` | node, ts, event_type, src_ip, src_port, dst_ip, dst_port, proto, signature_id, signature, severity |
 | pcap | `PcapAnalysis` | project, uploaded_by, sha256, size, profile, state, result JSON |
 | reports | `Report` | project, kind, source ids JSON, format, file, sha256, generated_by |

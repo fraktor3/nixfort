@@ -97,3 +97,43 @@ class Flow(BaseModel):
                     )
         if errors:
             raise ValidationError(errors)
+
+
+class ConnectivityTest(BaseModel):
+    """One TCP probe of one flow from its test node, with the verdict against expectations.
+    Flow fields are copied: the result stays readable after the policy changes."""
+
+    class Phase(models.TextChoices):
+        CHECK = "CHECK", "Проверка"
+        BASELINE = "BASELINE", "До изменения"
+        POST = "POST", "После изменения"
+        AFTER_ROLLBACK = "AFTER_ROLLBACK", "После отката"
+
+    class Verdict(models.TextChoices):
+        OK = "OK", "Соответствует"
+        VIOLATION = "VIOLATION", "Нарушение"
+        UNPROVABLE = "UNPROVABLE", "Не доказуемо"
+        NOT_CHECKED = "NOT_CHECKED", "Не проверено"
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="connectivity_tests")
+    job = models.ForeignKey("execution.Job", null=True, on_delete=models.SET_NULL, related_name="+")
+    plan_item = models.ForeignKey(
+        "remediation.RemediationItem", null=True, blank=True, on_delete=models.CASCADE, related_name="probes"
+    )
+    phase = models.CharField(max_length=15, choices=Phase.choices)
+    flow = models.ForeignKey(Flow, null=True, on_delete=models.SET_NULL, related_name="+")
+    policy_version = models.PositiveIntegerField()
+    flow_name = models.CharField(max_length=100)
+    src_cidr = models.CharField(max_length=18)
+    dst_ip = models.GenericIPAddressField(protocol="IPv4")
+    port = models.PositiveIntegerField()
+    action = models.CharField(max_length=5)
+    critical = models.BooleanField(default=False)
+    probe_node = models.CharField(max_length=64, blank=True)
+    result = models.CharField(max_length=12)  # OPEN | CLOSED | TIMEOUT | UNREACHABLE | ERROR | NOT_RUN
+    latency_ms = models.PositiveIntegerField(null=True)
+    verdict = models.CharField(max_length=12, choices=Verdict.choices)
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["created_at", "dst_ip", "port"]

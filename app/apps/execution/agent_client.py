@@ -34,6 +34,7 @@ KNOWN_ACTIONS: dict[str, bool] = {  # name -> mutating
     "fail2ban.apply_sshd_profile.v1": True,
     "fail2ban.unban.v1": True,
     "ssh.apply_hardening_profile.v1": True,
+    "nft.apply_policy.v1": True,
     "mutation.commit.v1": True,
     "mutation.rollback_now.v1": True,
 }

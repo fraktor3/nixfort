@@ -18,6 +18,8 @@ class Project(BaseModel):
     description = models.TextField("Описание", blank=True, max_length=2000)
     cidrs = models.JSONField("Подсети", default=list)
     controller_ip = models.GenericIPAddressField("IP контроллера NIXFORT (mgmt)", protocol="IPv4")
+    # Extra sources that keep SSH access to the gateway after the firewall policy is applied (FW-04).
+    admin_sources = models.JSONField("Дополнительные адреса администраторов", default=list, blank=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
@@ -35,6 +37,18 @@ class Project(BaseModel):
         self.cidrs = [v.parse_network(c) for c in self.cidrs]
         if self.controller_ip and not v.ip_in_networks(self.controller_ip, self.cidrs):
             raise ValidationError({"controller_ip": "IP контроллера должен входить в подсети проекта."})
+        if not isinstance(self.admin_sources, list) or len(self.admin_sources) > 3:
+            raise ValidationError({"admin_sources": "Не больше 3 адресов."})
+        self.admin_sources = [v.parse_ipv4(ip) for ip in self.admin_sources]
+
+    @property
+    def management_sources(self) -> list[str]:
+        """Who must keep SSH to the gateway: the controller first, then administrators (≤ 4 in total)."""
+        out = [self.controller_ip]
+        for ip in self.admin_sources or []:
+            if ip not in out:
+                out.append(ip)
+        return out[:4]
 
     @property
     def is_archived(self) -> bool:

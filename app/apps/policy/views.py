@@ -87,3 +87,41 @@ def activate(request, project_id):
         except services.PolicyError as exc:
             messages.error(request, str(exc))
     return redirect("policy:overview", project_id=project_id)
+
+
+# ---------------------------------------------------------------- connectivity (TCP probes of the flows)
+from apps.execution import services as job_services  # noqa: E402
+from apps.execution.models import Job, JobType  # noqa: E402
+
+from .models import ConnectivityTest  # noqa: E402
+
+
+@perm_required(Perm.VIEW_PROJECT)
+def connectivity(request, project_id):
+    project = request.project
+    jobs = Job.objects.filter(project=project, type=JobType.CONNECTIVITY).order_by("-created_at")[:10]
+    selected = None
+    if request.GET.get("job"):
+        selected = get_object_or_404(Job, id=request.GET["job"], project=project, type=JobType.CONNECTIVITY)
+    elif jobs:
+        selected = jobs[0]
+    rows = list(ConnectivityTest.objects.filter(job=selected)) if selected else []
+    return render(
+        request,
+        "policy/connectivity.html",
+        {
+            "project": project,
+            "jobs": jobs,
+            "selected": selected,
+            "rows": rows,
+            "active": FlowPolicyVersion.objects.filter(project=project, status="ACTIVE").first(),
+            "can_run": has_perm(request.user, Perm.RUN_JOBS, project) and not project.is_archived,
+        },
+    )
+
+
+@require_POST
+@perm_required(Perm.RUN_JOBS)
+def connectivity_run(request, project_id):
+    job = job_services.create_job(JobType.CONNECTIVITY, request.project, request.user, request=request)
+    return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
