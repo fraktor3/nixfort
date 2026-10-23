@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3">Поток · черновик v{{ draft.version }}</h1>
+<div class="col-md-7"><form method="post">{% include "core/_form.html" %}
+  <button class="btn btn-primary">Сохранить</button> <a class="btn btn-link" href="{% url 'policy:overview' project.id %}">Отмена</a></form></div>
+{% endblock %}

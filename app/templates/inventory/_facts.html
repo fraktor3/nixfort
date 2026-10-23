@@ -1,0 +1,10 @@
+{% with f=facts.system %}{% if f %}
+<table class="table table-sm small">
+  <tr><th>ОС</th><td>{{ f.os.pretty_name }} ({{ f.os.arch }}, ядро {{ f.os.kernel }}) {% if not f.os_supported %}<span class="badge text-bg-dark">не поддерживается</span>{% endif %}</td></tr>
+  <tr><th>Интерфейсы</th><td class="mono">{% for i in f.interfaces %}{{ i.name }}: {{ i.ipv4|join:", " }}<br>{% endfor %}</td></tr>
+  <tr><th>Пересылка IPv4</th><td>{{ f.ip_forward|yesno:"включена,выключена,нет данных" }}</td></tr>
+  <tr><th>Время</th><td>{{ f.time_sync.service|default:"нет службы" }}, синхронизировано: {{ f.time_sync.synchronized|yesno:"да,нет,нет данных" }}</td></tr>
+  <tr><th>Пакеты</th><td class="mono">{% for k, v in f.packages.items %}{{ k }}: {{ v|default:"не установлен" }}<br>{% endfor %}</td></tr>
+  <tr><th>Службы</th><td class="mono">{% for k, v in f.services.items %}{{ k }}: {{ v }}<br>{% endfor %}</td></tr>
+</table>{% endif %}{% endwith %}
+{% if facts.listeners %}<div class="small"><b>Открытые TCP-порты:</b> <span class="mono">{% for l in facts.listeners.listeners %}{% if not l.loopback %}{{ l.addr }}:{{ l.port }} ({{ l.process|default:"?" }}) {% endif %}{% endfor %}</span></div>{% endif %}

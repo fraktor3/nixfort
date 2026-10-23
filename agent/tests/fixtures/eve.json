@@ -1,0 +1,4 @@
+{"timestamp":"2026-11-01T10:00:00.000000+0300","event_type":"flow","src_ip":"10.88.0.10"}
+{"timestamp":"2026-11-01T10:00:01.000000+0300","event_type":"alert","src_ip":"10.88.0.10","src_port":40000,"dest_ip":"10.99.0.10","dest_port":8080,"proto":"TCP","payload":"c2VjcmV0","alert":{"signature_id":9000001,"signature":"NIXFORT IDS test marker","severity":3}}
+not json at all
+{"timestamp":"2026-11-01T10:00:02.000000+0300","event_type":"anomaly","src_ip":"10.88.0.10"}

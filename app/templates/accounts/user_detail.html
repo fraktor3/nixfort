@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3">{{ u.username }} {% if not u.is_active %}<span class="badge text-bg-secondary">отключён</span>{% endif %}</h1>
+<div class="row g-4"><div class="col-md-6">
+  <h2 class="h5">Роли</h2>
+  <ul class="list-group mb-3">{% for r in roles %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      {{ r.get_role_display }} · {% if r.project %}{{ r.project.name }}{% else %}все проекты{% endif %}
+      <form method="post" action="{% url 'accounts:role_revoke' u.pk r.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">Снять</button></form>
+    </li>{% empty %}<li class="list-group-item text-muted">Ролей нет — пользователь ничего не видит.</li>{% endfor %}</ul>
+  <form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}">{% csrf_token %}
+    <button class="btn btn-outline-secondary btn-sm">{% if u.is_active %}Отключить учётную запись{% else %}Включить учётную запись{% endif %}</button></form>
+</div><div class="col-md-6">
+  <h2 class="h5">Назначить роль</h2>
+  <form method="post">{% include "core/_form.html" %}<button class="btn btn-primary">Назначить</button></form>
+</div></div>
+{% endblock %}

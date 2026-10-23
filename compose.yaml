@@ -1,0 +1,87 @@
+# NIXFORT controller. Start: make up  (see README).
+name: nixfort
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile
+  image: nixfort-controller:latest
+  env_file: .env
+  environment:
+    POSTGRES_HOST: postgres
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  volumes:
+    - data:/var/lib/nixfort
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    env_file: .env
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--protected-mode", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  web:
+    <<: *app
+    command: ["web"]
+    volumes:
+      - data:/var/lib/nixfort
+      - static:/srv/nixfort/app/staticfiles
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status==200 else 1)"]
+      interval: 10s
+      retries: 12
+      start_period: 20s
+
+  worker-readonly:
+    <<: *app
+    command: ["worker-readonly"]
+    secrets: [controller_ed25519]
+
+  worker-mutation:
+    <<: *app
+    command: ["worker-mutation"]
+    secrets: [controller_ed25519]
+
+  beat:
+    <<: *app
+    command: ["beat"]
+
+  nginx:
+    image: nginx:1.27
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./secrets/tls:/etc/nginx/tls:ro
+      - static:/srv/static:ro
+    depends_on:
+      web: {condition: service_healthy}
+
+secrets:
+  controller_ed25519:
+    file: ./secrets/controller_ed25519
+
+volumes:
+  pgdata:
+  data:
+  static:

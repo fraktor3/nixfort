@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% load nx %}
+{% block title %}Журнал действий — NIXFORT{% endblock %}
+{% block content %}
+<h1 class="h3">Журнал действий</h1>
+<p class="text-muted small">Записи только добавляются: изменить или удалить их нельзя.</p>
+<form class="row g-2 mb-3" method="get">
+  <div class="col-auto"><select name="action" class="form-select form-select-sm"><option value="">Все действия</option>
+    {% for v, l in actions %}<option value="{{ v }}" {% if v == sel_action %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  <div class="col-auto"><input name="actor" value="{{ actor }}" class="form-control form-control-sm" placeholder="Пользователь"></div>
+  <div class="col-auto"><button class="btn btn-sm btn-secondary">Показать</button></div>
+</form>
+<table class="table table-sm table-striped">
+  <thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Итог</th><th>IP</th><th>Детали</th></tr></thead>
+  <tbody>{% for e in page %}
+    <tr><td class="text-nowrap">{{ e.ts|date:"d.m.Y H:i:s" }}</td><td>{{ e.actor_name }}</td><td>{{ e.get_action_display }}</td>
+      <td class="small">{{ e.object_type }}</td><td><span class="badge text-bg-{{ e.outcome|status_class }}">{{ e.get_outcome_display }}</span></td>
+      <td class="mono">{{ e.ip|default:"" }}</td><td class="mono small">{{ e.safe_metadata }}</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-muted">Записей нет.</td></tr>{% endfor %}</tbody>
+</table>
+{% if page.has_other_pages %}<nav><ul class="pagination pagination-sm">
+  {% if page.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&action={{ sel_action }}&actor={{ actor|urlencode }}">←</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">{{ page.number }} / {{ page.paginator.num_pages }}</span></li>
+  {% if page.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&action={{ sel_action }}&actor={{ actor|urlencode }}">→</a></li>{% endif %}
+</ul></nav>{% endif %}
+{% endblock %}

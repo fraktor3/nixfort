@@ -1,0 +1,10 @@
+vars.address-groups.HOME_NET = [192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]
+default-log-dir = /var/log/suricata/
+outputs.0.fast.enabled = no
+outputs.1.eve-log.enabled = yes
+outputs.1.eve-log.filetype = regular
+outputs.1.eve-log.filename = eve.json
+af-packet.0.interface = eth0
+af-packet.1.interface = default
+default-rule-path = /etc/suricata/rules
+rule-files.0 = suricata.rules

@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / политика соединений</nav>
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div><h1 class="h3">Политика соединений</h1>
+  <p class="text-muted small mb-0">ALLOW — соединение должно работать после изменений; DENY — должно быть заблокировано. Оба проверяются реальными TCP-пробами с тестового узла.</p></div>
+  <div class="btn-group">
+    {% if active and draft %}<a class="btn btn-sm btn-outline-secondary" href="?show={% if shown == draft %}active{% else %}draft{% endif %}">Показать {% if shown == draft %}активную{% else %}черновик{% endif %}</a>{% endif %}
+    {% if can_edit and not draft %}<form method="post" action="{% url 'policy:draft_create' project.id %}">{% csrf_token %}<button class="btn btn-sm btn-primary">Изменить (создать черновик)</button></form>{% endif %}
+  </div>
+</div>
+{% if shown %}
+<h2 class="h5">Версия v{{ shown.version }} <span class="badge text-bg-{{ shown.status|status_class }}">{{ shown.get_status_display }}</span></h2>
+{% for c in conflicts %}<div class="alert alert-{% if c.kind == 'contradiction' %}danger{% else %}warning{% endif %} py-2 small">{{ c.message }}</div>{% endfor %}
+<table class="table table-sm"><thead><tr><th>Назначение</th><th>Источник</th><th>Назначение (узел, IP:порт)</th><th>Действие</th><th>Критичный</th><th>Проба с</th><th></th></tr></thead><tbody>
+{% for f in flows %}<tr><td>{{ f.name }}</td><td class="mono">{{ f.src_cidr }}</td><td class="mono">{{ f.dst_node.name }} {{ f.dst_ip }}:{{ f.port }}</td>
+  <td><span class="badge text-bg-{% if f.action == 'ALLOW' %}success{% else %}danger{% endif %}">{{ f.get_action_display }}</span></td>
+  <td>{{ f.critical|yesno:"да,—" }}</td><td>{{ f.probe_from.name|default:"не задано" }}</td>
+  <td class="text-end">{% if shown.editable and can_edit %}<a class="btn btn-sm btn-link" href="{% url 'policy:flow_edit' project.id f.id %}">изменить</a>
+    <form class="d-inline" method="post" action="{% url 'policy:flow_delete' project.id f.id %}">{% csrf_token %}<button class="btn btn-sm btn-link text-danger">удалить</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="text-muted">Потоков нет.</td></tr>{% endfor %}</tbody></table>
+{% if shown.editable %}<div class="d-flex gap-2">
+  {% if can_edit %}<a class="btn btn-sm btn-outline-primary" href="{% url 'policy:flow_create' project.id %}">Добавить поток</a>{% endif %}
+  {% if can_activate %}<form method="post" action="{% url 'policy:activate' project.id %}">{% csrf_token %}<button class="btn btn-sm btn-success">Активировать v{{ shown.version }}</button></form>{% endif %}
+</div>{% endif %}
+{% else %}<p class="text-muted">Политики ещё нет.</p>{% endif %}
+<h2 class="h6 mt-4">История версий</h2>
+<ul class="small">{% for v in versions %}<li>v{{ v.version }} — {{ v.get_status_display }}, {{ v.created_at|date:"d.m.Y H:i" }}{% if v.activated_at %}, активирована {{ v.activated_at|date:"d.m.Y H:i" }}{% endif %}</li>{% endfor %}</ul>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / узел</nav>
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <h1 class="h3">{{ node.name }} <span class="badge text-bg-{{ node.status|status_class }} fs-6">{{ node.get_status_display }}</span></h1>
+  <div class="btn-group">{% if can_edit %}<a class="btn btn-outline-secondary" href="{% url 'inventory:node_edit' project.id node.id %}">Изменить</a>{% endif %}
+    {% block node_actions %}{% endblock %}</div>
+</div>
+<div class="row g-4">
+<div class="col-lg-5">
+  <table class="table table-sm">
+    <tr><th>IP управления</th><td class="mono">{{ node.mgmt_ip }}:{{ node.ssh_port }}</td></tr>
+    <tr><th>Рабочие IP</th><td class="mono">{{ node.data_ips|join:", "|default:"—" }}</td></tr>
+    <tr><th>Роли</th><td>{{ node.roles|join:", " }}</td></tr>
+    <tr><th>Ожидаемая ОС</th><td>{{ node.get_expected_os_display }}</td></tr>
+    <tr><th>Ожидаемые порты</th><td class="mono">{{ node.expected_tcp_ports|join:", "|default:"—" }}</td></tr>
+    {% if node.ids_interface %}<tr><th>Интерфейс IDS</th><td class="mono">{{ node.ids_interface }}</td></tr>{% endif %}
+  </table>
+  <div class="card"><div class="card-header">SSH-ключ узла</div><div class="card-body">
+    {% if hostkey %}
+      <div class="mono small mb-2">{{ hostkey.key_type }} {{ hostkey.fingerprint_sha256 }}</div>
+      {% if hostkey.confirmed_at %}<div class="text-success small">Подтверждён {{ hostkey.confirmed_by }} {{ hostkey.confirmed_at|date:"d.m.Y H:i" }}</div>
+      {% else %}<div class="alert alert-warning small">Ключ не подтверждён — операции с узлом запрещены. Сверьте отпечаток с выводом <span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span> на самом узле.</div>
+        {% if can_confirm %}<form method="post" action="{% url 'inventory:hostkey_confirm' project.id node.id %}">{% csrf_token %}<button class="btn btn-sm btn-warning">Отпечаток совпадает — подтвердить</button></form>{% endif %}
+      {% endif %}
+    {% else %}<p class="text-muted small">Ключ не задан.</p>{% endif %}
+    {% if can_edit %}<form class="mt-3" method="post" action="{% url 'inventory:hostkey_set' project.id node.id %}">{% csrf_token %}
+      <textarea name="public_key" rows="2" class="form-control form-control-sm mono" placeholder="ssh-ed25519 AAAA…"></textarea>
+      <button class="btn btn-sm btn-outline-secondary mt-2">Сохранить ключ</button></form>{% endif %}
+  </div></div>
+  {% if can_edit %}<form class="mt-3" method="post" action="{% url 'inventory:node_deactivate' project.id node.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">Отключить узел</button></form>{% endif %}
+</div>
+<div class="col-lg-7">
+  <div class="card"><div class="card-header">Последняя инвентаризация</div><div class="card-body">
+    {% if snapshot %}<div class="small text-muted mb-2">{{ snapshot.collected_at|date:"d.m.Y H:i:s" }} · агент {{ snapshot.agent_version }}</div>
+      {% include "inventory/_facts.html" with facts=snapshot.facts %}
+    {% else %}<p class="text-muted">Инвентаризация ещё не выполнялась.</p>{% endif %}
+  </div></div>
+</div></div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% load nx %}
+{% block title %}Обзор — NIXFORT{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Обзор</h1>
+  {% if can_create_project %}<a class="btn btn-primary" href="{% url 'inventory:project_create' %}">Новый проект</a>{% endif %}
+</div>
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card"><div class="card-header">Проекты</div>
+      <ul class="list-group list-group-flush">
+        {% for p in projects %}
+          <li class="list-group-item d-flex justify-content-between"><a href="{% url 'inventory:project_detail' p.id %}">{{ p.name }}</a>
+            <span class="badge text-bg-{{ p.status|status_class }}">{{ p.get_status_display }}</span></li>
+        {% empty %}<li class="list-group-item text-muted">Проектов нет.</li>{% endfor %}
+      </ul></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card"><div class="card-header">Последние задания</div>
+      <ul class="list-group list-group-flush">
+        {% for j in jobs %}
+          <li class="list-group-item d-flex justify-content-between">
+            <a href="{% url 'execution:job_detail' j.project_id j.id %}">{{ j.get_type_display }} · {{ j.project.name }}</a>
+            <span class="badge text-bg-{{ j.state|status_class }}">{{ j.get_state_display }}</span></li>
+        {% empty %}<li class="list-group-item text-muted">Заданий нет.</li>{% endfor %}
+      </ul></div>
+  </div>
+</div>
+<div class="alert alert-secondary limits mt-4 small">NIXFORT показывает только то, что проверено. Статус «нет данных» (UNKNOWN) не означает «безопасно». Индикатора «сеть защищена» нет намеренно.</div>
+{% endblock %}

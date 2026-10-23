@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3"><h1 class="h3">Проекты</h1>
+  {% if can_create_project %}<a class="btn btn-primary" href="{% url 'inventory:project_create' %}">Новый проект</a>{% endif %}</div>
+<table class="table"><thead><tr><th>Название</th><th>Подсети</th><th>Статус</th></tr></thead><tbody>
+{% for p in projects %}<tr><td><a href="{% url 'inventory:project_detail' p.id %}">{{ p.name }}</a></td>
+  <td class="mono">{{ p.cidrs|join:", " }}</td><td><span class="badge text-bg-{{ p.status|status_class }}">{{ p.get_status_display }}</span></td></tr>
+{% empty %}<tr><td colspan="3" class="text-muted">Нет доступных проектов.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

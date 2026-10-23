@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3"><h1 class="h3">Пользователи</h1>
+  <a class="btn btn-primary" href="{% url 'accounts:user_create' %}">Новый пользователь</a></div>
+<table class="table">
+  <thead><tr><th>Логин</th><th>Роли</th><th>Активен</th><th>Последний вход</th></tr></thead>
+  <tbody>{% for u in users %}
+    <tr><td><a href="{% url 'accounts:user_detail' u.pk %}">{{ u.username }}</a></td>
+      <td>{% for r in u.role_assignments.all %}<span class="badge text-bg-secondary me-1">{{ r.get_role_display }} · {% if r.project %}{{ r.project.name }}{% else %}все проекты{% endif %}</span>{% endfor %}</td>
+      <td>{{ u.is_active|yesno:"да,нет" }}</td><td>{{ u.last_login|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+  {% endfor %}</tbody>
+</table>
+{% endblock %}

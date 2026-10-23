@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nixfort"
+version = "1.0.0"
+description = "NIXFORT: audit, controlled hardening and evidence-based verification of a Linux network segment"
+requires-python = ">=3.12"
+dependencies = [
+  "Django~=5.2.8",
+  "psycopg[binary]~=3.2",
+  "celery~=5.5",
+  "redis~=5.2",
+  "gunicorn~=23.0",
+  "django-axes~=7.0",
+  "paramiko~=3.5",
+  "defusedxml~=0.7",
+]
+
+[project.optional-dependencies]
+pdf = ["weasyprint~=66.0"]
+dev = [
+  "pytest~=8.3",
+  "pytest-django~=4.9",
+  "pytest-cov~=6.0",
+  "ruff~=0.8",
+  "fakeredis~=2.26",
+  "pip-audit~=2.7",
+]
+
+[tool.setuptools]
+packages = []
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["app/*/migrations/*", "app/apps/*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "S", "UP"]
+ignore = ["S101", "S404", "S603", "E501", "B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config", "nixfort_agent"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S", "B"]
+"tests/**" = ["S", "B"]
+"agent/tests/**" = ["S", "B"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+pythonpath = ["app", "agent", "."]
+testpaths = ["app", "tests", "agent/tests"]
+python_files = ["test_*.py"]
+markers = ["integration: needs PostgreSQL/Redis/real lab nodes"]
+addopts = "-q"
+filterwarnings = ["ignore::ResourceWarning"]

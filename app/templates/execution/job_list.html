@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / задания</nav>
+<h1 class="h3">Задания</h1>
+<table class="table table-sm"><thead><tr><th>Создано</th><th>Тип</th><th>Узел</th><th>Инициатор</th><th>Состояние</th><th>Ошибка</th></tr></thead><tbody>
+{% for j in jobs %}<tr><td><a href="{% url 'execution:job_detail' project.id j.id %}">{{ j.created_at|date:"d.m.Y H:i:s" }}</a></td><td>{{ j.get_type_display }}</td>
+  <td>{{ j.node.name|default:"—" }}</td><td>{{ j.requested_by|default:"—" }}</td>
+  <td><span class="badge text-bg-{{ j.state|status_class }}">{{ j.get_state_display }}</span></td><td class="mono small">{{ j.safe_error_code }}</td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">Заданий нет.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

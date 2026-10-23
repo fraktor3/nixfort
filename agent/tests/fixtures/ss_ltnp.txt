@@ -1,0 +1,6 @@
+LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=600,fd=15))
+LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=1,fd=3),("systemd",pid=1,fd=52))
+LISTEN 0      511          0.0.0.0:80         0.0.0.0:*    users:(("nginx",pid=900,fd=5))
+LISTEN 0      5            0.0.0.0:8080       0.0.0.0:*    users:(("python3",pid=950,fd=3))
+LISTEN 0      4096            [::]:22            [::]:*    users:(("sshd",pid=1,fd=4))
+LISTEN 0      511                *:443              *:*

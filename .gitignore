@@ -1,0 +1,31 @@
+# секреты
+.env
+secrets/
+*.pem
+*_ed25519
+*_ed25519.pub
+*.key
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+# django
+app/media/
+app/staticfiles/
+*.sqlite3
+# данные стенда
+*.pcap
+*.pcapng
+lab/captures/
+# ide/os
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
+~$*.docx

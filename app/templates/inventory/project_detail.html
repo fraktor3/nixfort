@@ -1,0 +1,36 @@
+{% extends "base.html" %}{% load nx %}
+{% block title %}{{ project.name }} — NIXFORT{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div><h1 class="h3 mb-1">{{ project.name }} <span class="badge text-bg-{{ project.status|status_class }} fs-6">{{ project.get_status_display }}</span></h1>
+    <div class="text-muted small">{{ project.description }}</div>
+    <div class="mono small">Подсети: {{ project.cidrs|join:", " }} · контроллер {{ project.controller_ip }}</div></div>
+  <div class="btn-group">
+    {% if can_edit %}<a class="btn btn-outline-secondary" href="{% url 'inventory:project_edit' project.id %}">Изменить</a>{% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'policy:overview' project.id %}">Политика соединений</a>
+    <a class="btn btn-outline-secondary" href="{% url 'execution:job_list' project.id %}">Задания</a>
+  </div>
+</div>
+<div class="card mb-4"><div class="card-header d-flex justify-content-between"><span>Узлы</span>
+  {% if can_edit %}<a class="btn btn-sm btn-primary" href="{% url 'inventory:node_create' project.id %}">Добавить узел</a>{% endif %}</div>
+<table class="table mb-0"><thead><tr><th>Имя</th><th>IP управления</th><th>Рабочие IP</th><th>Роли</th><th>Статус</th><th>Инвентаризация</th></tr></thead><tbody>
+{% for n in nodes %}<tr><td><a href="{% url 'inventory:node_detail' project.id n.id %}">{{ n.name }}</a></td><td class="mono">{{ n.mgmt_ip }}</td>
+  <td class="mono">{{ n.data_ips|join:", " }}</td><td class="small">{{ n.roles|join:", " }}</td>
+  <td><span class="badge text-bg-{{ n.status|status_class }}">{{ n.get_status_display }}</span></td>
+  <td class="small">{{ n.last_inventory_at|date:"d.m.Y H:i"|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">Узлов нет.</td></tr>{% endfor %}</tbody></table></div>
+<div class="row g-4">
+  <div class="col-md-6"><div class="card"><div class="card-header">Политика соединений</div><div class="card-body">
+    {% if active_policy %}Активна версия <b>v{{ active_policy.version }}</b>, потоков: {{ active_policy.flows.count }}.{% else %}<span class="text-muted">Активной политики нет.</span>{% endif %}
+    <a href="{% url 'policy:overview' project.id %}">Открыть</a></div></div></div>
+  <div class="col-md-6"><div class="card"><div class="card-header d-flex justify-content-between"><span>Последние задания</span>
+    {% if can_run %}<form method="post" action="{% url 'execution:noop_create' project.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" title="Проверка работы очереди">Тестовое задание</button></form>{% endif %}</div>
+    <ul class="list-group list-group-flush">{% for j in jobs %}<li class="list-group-item d-flex justify-content-between">
+      <a href="{% url 'execution:job_detail' project.id j.id %}">{{ j.get_type_display }}{% if j.node %} · {{ j.node.name }}{% endif %}</a>
+      <span class="badge text-bg-{{ j.state|status_class }}">{{ j.get_state_display }}</span></li>
+    {% empty %}<li class="list-group-item text-muted">Заданий нет.</li>{% endfor %}</ul></div></div>
+</div>
+{% if is_admin and not project.is_archived %}
+<form class="mt-4" method="post" action="{% url 'inventory:project_archive' project.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">Перенести проект в архив</button></form>
+{% endif %}
+{% endblock %}

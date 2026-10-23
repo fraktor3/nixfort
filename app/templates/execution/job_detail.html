@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / <a href="{% url 'execution:job_list' project.id %}">задания</a></nav>
+<h1 class="h3">{{ job.get_type_display }}{% if job.node %} · {{ job.node.name }}{% endif %}</h1>
+<div id="job-status">{% include "execution/_job_status.html" %}</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% load nx %}<div {% if not job.is_terminal %}hx-get="{% url 'execution:job_detail' project.id job.id %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <p><span class="badge fs-6 text-bg-{{ job.state|status_class }}">{{ job.get_state_display }}</span>
+    <span class="text-muted ms-2">{{ job.phase }}</span>
+    {% if job.safe_error_code %}<span class="mono text-danger ms-2">{{ job.safe_error_code }}</span>{% endif %}</p>
+  <div class="progress mb-3" role="progressbar" aria-valuenow="{{ job.progress }}" aria-valuemin="0" aria-valuemax="100">
+    <div class="progress-bar {% if not job.is_terminal %}progress-bar-striped progress-bar-animated{% endif %} w-{{ job.progress|stringformat:'d' }}"
+         data-progress="{{ job.progress }}"><span class="ms-2">{{ job.progress }}%</span></div></div>
+  <div class="small text-muted mb-2">Создано {{ job.created_at|date:"d.m.Y H:i:s" }} · {{ job.requested_by|default:"система" }}
+    {% if job.started_at %}· начато {{ job.started_at|date:"H:i:s" }}{% endif %}{% if job.finished_at %}· завершено {{ job.finished_at|date:"H:i:s" }}{% endif %}</div>
+  <div class="joblog border rounded p-2 mono small">{% for l in logs %}<div class="{% if l.level == 'ERROR' %}text-danger{% elif l.level == 'WARN' %}text-warning{% endif %}">{{ l.ts|date:"H:i:s" }} {{ l.message }}</div>{% empty %}<span class="text-muted">Журнал пуст.</span>{% endfor %}</div>
+  {% if job.state == "UNKNOWN" %}<div class="alert alert-danger mt-3">Состояние неизвестно: задание не подтвердило результат. Проверьте узел вручную; результат не считается успешным.</div>{% endif %}
+</div>
