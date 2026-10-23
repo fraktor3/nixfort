@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from dataclasses import replace
+from unittest import mock
 
 from nixfort_agent.__main__ import handle
 from nixfort_agent.osprofile import UBUNTU_2404
@@ -86,13 +87,21 @@ class Env:
         self.sys = FakeSystem(**fs_kw)
         self.files = {"/etc/ssh/sshd_config": SSHD_CONFIG}
 
+    def _access(self, path, mode, _real=os.access):
+        # /tmp in the controller container is a noexec tmpfs, where access(X_OK)
+        # is always false; the fake binaries count as executable regardless.
+        if str(path).startswith(self.tmp.name + "/bin/"):
+            return True
+        return _real(path, mode)
+
     def call(self, action, params=None):
         def factory(deadline):
             ctx = make_ctx(runner=self.sys, files=self.files)
             ctx.profile = self.profile
             return ctx
 
-        return json.loads(handle(request(action, params or {}), ctx_factory=factory))
+        with mock.patch("os.access", self._access):
+            return json.loads(handle(request(action, params or {}), ctx_factory=factory))
 
     def ctx(self):
         c = make_ctx(runner=self.sys, files=self.files)
