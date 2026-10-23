@@ -121,3 +121,9 @@ table inet nixfort {
 Строки 1–2 делают замену атомарной и идемпотентной (работает и на старых версиях nft, без `destroy`). Правила DENY явно не пишутся — их обеспечивает `policy drop`; DENY-flow в политике нужны для **проверки**. Чужие таблицы не трогаются; если обнаружены чужие base-chain на hook forward/input с `policy drop` — `conflict`, мутация запрещена.
 
 Персистентность: файл `/etc/nftables.d/nixfort.nft` + строка `include "/etc/nftables.d/*.nft"` в `/etc/nftables.conf` (добавляется агентом один раз, со снимком).
+
+## 8. Реализация (агент 1.1.0)
+Реализованы: все read-действия, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`.
+В работе: `nft.apply_policy.v1`, `suricata.apply_sensor_profile.v1`.
+
+Общий путь изменения (`nixfort_agent/mutation.py: guarded_apply`): снимок → запись кандидата → проверка (при ошибке — восстановление, FAILED) → таймер отката (`systemd-run`, при ошибке — восстановление, ERROR timer_failed) → активация (при ошибке — откат). Откат по таймеру выполняет `/usr/local/sbin/nixfort-agent-rollback <id>` (0700, только root, не в sudoers). Повторный откат идемпотентен (блокировка файла снимка).

@@ -24,14 +24,15 @@ class FakeRunner:
         self.calls.append(argv)
         key = tuple(argv[1:])
         if key in self.table:
-            return self.table[key]
+            v = self.table[key]
+            return v(argv) if callable(v) else v
         # longest prefix match
         best = None
         for k, v in self.table.items():
             if key[: len(k)] == k and (best is None or len(k) > len(best[0])):
                 best = (k, v)
         if best:
-            return best[1]
+            return best[1](argv) if callable(best[1]) else best[1]
         return RunResult(1, "", "not mocked", False)
 
 

@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / <a href="{% url 'remediation:plan_list' project.id %}">планы</a></nav>
+<div class="d-flex justify-content-between align-items-start mb-2">
+  <div><h1 class="h3">План исправлений <span class="badge text-bg-{{ plan.state|status_class }} fs-6">{{ plan.get_state_display }}</span></h1>
+  <div class="small text-muted">на основе <a href="{% url 'checks:run_detail' project.id plan.audit_run_id %}">аудита {{ plan.audit_run.created_at|date:"d.m.Y H:i" }}</a> · риск {{ plan.risk }}{% if plan.approved_by %} · утвердил {{ plan.approved_by }} {{ plan.approved_at|date:"d.m.Y H:i" }}{% endif %}{% if plan.job %} · <a href="{% url 'execution:job_detail' project.id plan.job_id %}">ход выполнения</a>{% endif %}</div></div>
+</div>
+<div class="alert alert-secondary limits small">Каждый шаг: снимок текущих настроек → проверка новой конфигурации → таймер автоотката <b>на самом узле</b> → применение → проверка через новое SSH-соединение → подтверждение. Если проверка не пройдена или связь потеряна — изменение откатывается.</div>
+<table class="table align-middle"><thead><tr><th>#</th><th>Узел</th><th>Действие</th><th>Исправляет</th><th>Риск</th><th>Откат</th><th>Состояние</th></tr></thead><tbody>
+{% for i in items %}<tr><td>{{ forloop.counter }}</td><td>{{ i.node.name }}</td><td>{{ i.description }}<div class="mono small text-muted">{{ i.action_id }}</div></td>
+  <td class="mono small">{{ i.check_ids|join:", " }}</td><td>{{ i.risk }}</td><td>{% if i.reversible %}автоматический{% else %}<span class="text-warning">необратимо</span>{% endif %}</td>
+  <td><span class="badge text-bg-{{ i.state|status_class }}">{{ i.get_state_display }}</span>{% if i.result.reason %}<div class="small text-muted">{{ i.result.reason }}</div>{% elif i.result.verify %}<div class="small text-muted">{{ i.result.verify }}</div>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="7" class="text-muted">Нет шагов.</td></tr>{% endfor %}</tbody></table>
+{% if plan.not_covered %}<h2 class="h6">Не исправляется автоматически</h2>
+<ul class="small">{% for n in plan.not_covered %}<li><b>{{ n.node }}</b> · <span class="mono">{{ n.check_id }}</span> — {{ n.reason }}</li>{% endfor %}</ul>{% endif %}
+{% if can_approve %}<form method="post" action="{% url 'remediation:plan_approve' project.id plan.id %}" class="card card-body border-warning mt-3">{% csrf_token %}
+  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="confirm" id="confirm"><label class="form-check-label" for="confirm">Я проверил шаги и риски. Изменения будут применены на узлах с автоматическим откатом при сбое.</label></div>
+  <div class="d-flex gap-2"><button class="btn btn-warning">Утвердить и выполнить</button></div></form>{% endif %}
+{% if can_reject %}<form method="post" action="{% url 'remediation:plan_reject' project.id plan.id %}" class="mt-2">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary">Отклонить план</button></form>{% endif %}
+{% if before_after %}<h2 class="h5 mt-4">До / после</h2>
+<table class="table table-sm"><thead><tr><th>Узел</th><th>Проверка</th><th>До</th><th>После</th></tr></thead><tbody>
+{% for r in before_after %}<tr {% if r.changed %}class="table-active"{% endif %}><td>{{ r.node }}</td><td><span class="mono small">{{ r.check_id }}</span> {{ r.title }}</td>
+  <td><span class="badge text-bg-{{ r.before|status_class }}">{{ r.before }}</span></td><td><span class="badge text-bg-{{ r.after|status_class }}">{{ r.after }}</span></td></tr>{% endfor %}</tbody></table>{% endif %}
+{% endblock %}

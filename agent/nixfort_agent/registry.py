@@ -42,6 +42,6 @@ def action(name: str, params: Obj, mutating: bool = False, needs_supported_os: b
 
 def load_all() -> dict[str, Action]:
     # Importing the modules registers their actions.
-    from .actions import fail2ban, net, nft, ssh, suricata, system  # noqa: F401
+    from .actions import fail2ban, mutation, net, nft, pkg, ssh, suricata, system  # noqa: F401
 
     return REGISTRY

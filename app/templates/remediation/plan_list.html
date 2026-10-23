@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / планы исправлений</nav>
+<h1 class="h3">Планы исправлений</h1>
+<p class="text-muted small">План создаётся из результатов аудита. Выполняет его только администратор после утверждения.</p>
+<table class="table"><thead><tr><th>Создан</th><th>Кем</th><th>Шагов</th><th>Риск</th><th>Состояние</th><th>Утвердил</th></tr></thead><tbody>
+{% for p in plans %}<tr><td><a href="{% url 'remediation:plan_detail' project.id p.id %}">{{ p.created_at|date:"d.m.Y H:i:s" }}</a></td>
+  <td>{{ p.created_by|default:"—" }}</td><td>{{ p.items.count }}</td><td>{{ p.risk }}</td>
+  <td><span class="badge text-bg-{{ p.state|status_class }}">{{ p.get_state_display }}</span></td><td>{{ p.approved_by|default:"—" }}</td></tr>
+{% empty %}<tr><td colspan="6" class="text-muted">Планов нет. Создайте план со страницы результатов аудита.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

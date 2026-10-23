@@ -9,6 +9,7 @@
     {% if can_edit %}<a class="btn btn-outline-secondary" href="{% url 'inventory:project_edit' project.id %}">Изменить</a>{% endif %}
     <a class="btn btn-outline-secondary" href="{% url 'policy:overview' project.id %}">Политика соединений</a>
     <a class="btn btn-outline-secondary" href="{% url 'checks:run_list' project.id %}">Аудит</a>
+    <a class="btn btn-outline-secondary" href="{% url 'remediation:plan_list' project.id %}">Исправления</a>
     <a class="btn btn-outline-secondary" href="{% url 'inventory:portscan_list' project.id %}">Сканирование</a>
     <a class="btn btn-outline-secondary" href="{% url 'execution:job_list' project.id %}">Задания</a>
   </div>

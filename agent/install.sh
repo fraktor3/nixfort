@@ -31,6 +31,7 @@ if [ -d "$SRC_DIR/templates" ] && ls "$SRC_DIR"/templates/* >/dev/null 2>&1; the
   install -o root -g root -m 0644 "$SRC_DIR"/templates/* "$DEST/templates/"
 fi
 install -o root -g root -m 0644 "$SRC_DIR/run.py" "$DEST/run.py"
+install -o root -g root -m 0644 "$SRC_DIR/rollback.py" "$DEST/rollback.py"
 find "$DEST" -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
 
 # 2. Launchers.
@@ -39,6 +40,12 @@ cat > /usr/local/sbin/nixfort-agent <<'LAUNCH'
 exec /usr/bin/python3 -I -S /opt/nixfort-agent/run.py
 LAUNCH
 chown root:root /usr/local/sbin/nixfort-agent && chmod 0755 /usr/local/sbin/nixfort-agent
+# Started only by systemd timers created by the agent itself (not allowed in sudoers).
+cat > /usr/local/sbin/nixfort-agent-rollback <<'LAUNCH'
+#!/bin/sh
+exec /usr/bin/python3 -I -S /opt/nixfort-agent/rollback.py "$1"
+LAUNCH
+chown root:root /usr/local/sbin/nixfort-agent-rollback && chmod 0700 /usr/local/sbin/nixfort-agent-rollback
 
 # 3. State directories and log.
 install -d -o root -g root -m 0700 /var/lib/nixfort /var/lib/nixfort/snapshots /var/lib/nixfort/tmp
