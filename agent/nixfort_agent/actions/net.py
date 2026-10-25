@@ -58,3 +58,50 @@ def send_ids_test(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
             return {"sent": True}
     except OSError:
         return {"sent": False}
+
+
+@action(
+    "net.ssh_login_attempts.v1",
+    Obj({"ip": IPv4(), "port": Int(1, 65535), "count": Int(1, 10)}),
+)
+def ssh_login_attempts(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+    """Protection test «password guessing»: `count` SSH logins as non-existent users, no password is ever sent
+    (BatchMode). The target's sshd logs «Invalid user …» — exactly what Fail2ban counts. Host key checking is off
+    on purpose: this is an attack simulation, nothing secret is transmitted and nothing is stored."""
+    from ..errors import ToolError
+
+    results = []
+    for i in range(1, params["count"] + 1):
+        t0 = time.monotonic()
+        try:
+            res = ctx.tool(
+                "ssh_client",
+                "-n",
+                "-o", "BatchMode=yes",
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "GlobalKnownHostsFile=/dev/null",
+                "-o", "ConnectTimeout=3",
+                "-o", "LogLevel=ERROR",
+                "-p", str(params["port"]),
+                "-l", f"nixfort-test-{i}",
+                params["ip"],
+                "true",
+                timeout=8,
+            )  # fmt: skip
+            err = (res.stderr or "").lower()
+            if "permission denied" in err:
+                outcome = "REJECTED"  # reached sshd, authentication refused
+            elif "refused" in err:
+                outcome = "CLOSED"
+            elif "timed out" in err:
+                outcome = "TIMEOUT"
+            else:
+                outcome = "ERROR"
+        except ToolError as exc:
+            if exc.code == "tool_missing":
+                raise
+            outcome = "TIMEOUT"
+        results.append({"attempt": i, "result": outcome, "latency_ms": int((time.monotonic() - t0) * 1000)})
+    summary = {k: sum(1 for r in results if r["result"] == k) for k in ("REJECTED", "CLOSED", "TIMEOUT", "ERROR")}
+    return {"attempts": results, "summary": summary}

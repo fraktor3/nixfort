@@ -30,12 +30,15 @@ JOB_TIMEOUTS: dict[str, int] = {
     JobType.CONNECTIVITY: 300,
     JobType.IDS_FETCH: 120,
     JobType.IDS_TEST: 120,
+    JobType.PROTECTION_TEST: 300,
     JobType.PCAP_ANALYZE: 300,
     JobType.REPORT: 300,
 }
 
 JOB_PERMS: dict[str, Perm] = {t: Perm.RUN_JOBS for t in JobType.values}
 JOB_PERMS[JobType.PLAN_EXECUTE] = Perm.APPROVE_PLAN
+# Simulated attacks change node state (a Fail2ban ban) -> administrators only.
+JOB_PERMS[JobType.PROTECTION_TEST] = Perm.APPROVE_PLAN
 
 
 class InvalidTransition(Exception):

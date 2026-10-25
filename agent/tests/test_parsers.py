@@ -160,3 +160,16 @@ class ParserTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EveSinceTests(unittest.TestCase):
+    def test_since_compares_instants_across_offsets(self):
+        lines = [
+            '{"timestamp":"2026-10-26T01:14:00.000000+0300","event_type":"alert","alert":{"signature_id":1}}',
+            '{"timestamp":"2026-10-26T01:15:00.000000+0300","event_type":"alert","alert":{"signature_id":2}}',
+            '{"timestamp":"garbage","event_type":"alert","alert":{"signature_id":3}}',
+        ]
+        # 22:14:30 UTC == 01:14:30 +0300: only the second event is newer
+        out = parsers.parse_eve_lines(lines, "2026-10-25T22:14:30+00:00", {"alert"}, 10)
+        self.assertEqual([e["alert"]["signature_id"] for e in out], [2])
+        self.assertEqual(len(parsers.parse_eve_lines(lines, None, {"alert"}, 10)), 3)

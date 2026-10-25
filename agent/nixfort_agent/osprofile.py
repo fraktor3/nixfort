@@ -42,6 +42,7 @@ _DEBIAN_BINS = {
     "fail2ban_client": ("/usr/bin/fail2ban-client",),
     "suricata": ("/usr/bin/suricata",),
     "ufw": ("/usr/sbin/ufw",),
+    "ssh_client": ("/usr/bin/ssh",),
 }
 
 _DEBIAN_PATHS = {
@@ -58,6 +59,8 @@ _DEBIAN_PATHS = {
     "suricata_owned": "/etc/suricata/nixfort-sensor.yaml",
     "suricata_rules_dir": "/etc/suricata/rules",
     "suricata_test_rules": "/etc/suricata/rules/nixfort-test.rules",
+    "suricata_dist_rules": "/var/lib/suricata/rules/suricata.rules",
+    "sys_class_net": "/sys/class/net",
     "state_dir": "/var/lib/nixfort",
     "snapshots_dir": "/var/lib/nixfort/snapshots",
     "tmp_dir": "/var/lib/nixfort/tmp",

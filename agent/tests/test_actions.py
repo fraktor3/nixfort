@@ -154,6 +154,33 @@ class NetProbeTests(unittest.TestCase):
 
 
 @unittest.skipUnless(os.geteuid() == 0 and os.path.exists("/usr/sbin/nft"), "needs root and nft")
+class SshLoginAttemptsTests(unittest.TestCase):
+    def test_outcomes_and_fixed_argv(self):
+        replies = iter(
+            [
+                ok(rc=255, stderr="nixfort-test-1@10.99.0.10: Permission denied (publickey,password)."),
+                ok(rc=255, stderr="ssh: connect to host 10.99.0.10 port 22: Connection refused"),
+                ok(rc=255, stderr="ssh: connect to host 10.99.0.10 port 22: Connection timed out"),
+            ]
+        )
+        runner = FakeRunner({(): lambda argv: next(replies)})
+        r = call(request("net.ssh_login_attempts.v1", {"ip": "10.99.0.10", "port": 22, "count": 3}), runner)
+        self.assertEqual(r["state"], "OK", r)
+        self.assertEqual(r["result"]["summary"], {"REJECTED": 1, "CLOSED": 1, "TIMEOUT": 1, "ERROR": 0})
+        argv = runner.calls[0]
+        self.assertEqual(argv[0], "/usr/bin/ssh")
+        self.assertIn("BatchMode=yes", argv)  # never sends a password
+        self.assertEqual(argv[-3:], ["nixfort-test-1", "10.99.0.10", "true"])
+
+    def test_params_strict(self):
+        for bad in (
+            {"ip": "10.99.0.10; id", "port": 22, "count": 3},
+            {"ip": "10.99.0.10", "port": 22, "count": 50},
+            {"ip": "-oProxyCommand=x", "port": 22, "count": 1},
+        ):
+            self.assertEqual(call(request("net.ssh_login_attempts.v1", bad), FakeRunner())["state"], "REJECTED")
+
+
 class NftRealTests(unittest.TestCase):
     """Runs the real nft binary inside a fresh network namespace."""
 

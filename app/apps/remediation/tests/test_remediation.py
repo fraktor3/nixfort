@@ -102,17 +102,22 @@ class FakeNode:
 def test_planner_from_real_lab_baseline(baseline_run, operator):
     plan = planner.create_plan(baseline_run, operator, key_only_confirmed=False)
     steps = [(i.node.name, i.action_id, i.check_ids) for i in plan.items.all()]
-    assert steps[0] == ("nx-server", "pkg.install_security_tool.v1", ["F2B-01"])
+    assert ("nx-gateway", "pkg.install_security_tool.v1", ["IDS-01"]) in steps[:2]
+    assert ("nx-server", "pkg.install_security_tool.v1", ["F2B-01"]) in steps[:2]
     assert ("nx-server", "fail2ban.apply_sshd_profile.v1", ["F2B-01", "F2B-02", "F2B-03"]) in steps
     ssh_steps = [s for s in steps if s[1] == "ssh.apply_hardening_profile.v1"]
     assert {s[0] for s in ssh_steps} == {"nx-gateway", "nx-server"}
     assert all("SSH-02" not in s[2] for s in ssh_steps)  # not confirmed -> password login untouched
     srv_ssh = plan.items.get(node__name="nx-server", action_id="ssh.apply_hardening_profile.v1")
     assert srv_ssh.params["password_authentication"] is True and srv_ssh.risk == "MEDIUM"
-    assert {n["check_id"] for n in plan.not_covered} >= {"SSH-02", "SYS-04", "FW-03", "IDS-01"}
-    # order: install -> fail2ban -> ssh (low risk first)
+    assert {n["check_id"] for n in plan.not_covered} >= {"SSH-02", "SYS-04", "FW-03"}  # FW: no active policy
+    ids = plan.items.get(action_id="suricata.apply_sensor_profile.v1")
+    assert ids.node.name == "nx-gateway" and ids.params["interface"] == "enp0s9" and ids.risk == "MEDIUM"
+    assert ids.check_ids == ["IDS-01", "IDS-02", "IDS-03"]
+    # order: install -> fail2ban -> ssh -> suricata (low risk first)
     orders = [i.action_id for i in plan.items.all()]
     assert orders.index("fail2ban.apply_sshd_profile.v1") < orders.index("ssh.apply_hardening_profile.v1")
+    assert orders.index("ssh.apply_hardening_profile.v1") < orders.index("suricata.apply_sensor_profile.v1")
 
 
 def test_planner_key_only_confirmed_is_high_risk(baseline_run, operator):

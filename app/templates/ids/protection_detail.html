@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% load nx %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / <a href="{% url 'ids:protection' project.id %}">проверка защиты</a></nav>
+<h1 class="h4">{{ t.get_scenario_display }} — {{ t.get_verdict_display }}</h1>
+<div class="small text-muted mb-3">{{ t.created_at|date:"d.m.Y H:i:s" }}{% if t.job %} · <a href="{% url 'execution:job_detail' project.id t.job_id %}">журнал задания</a>{% endif %}</div>
+{% include "ids/_layers.html" %}
+{% if t.details %}<h2 class="h6 mt-3">Подробности</h2><pre class="small mono">{{ t.details|pprint }}</pre>{% endif %}
+{% endblock %}

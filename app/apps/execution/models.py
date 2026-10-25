@@ -16,6 +16,7 @@ class JobType(models.TextChoices):
     CONNECTIVITY = "CONNECTIVITY", "Проверка соединений"
     IDS_FETCH = "IDS_FETCH", "События IDS"
     IDS_TEST = "IDS_TEST", "Тестовое событие IDS"
+    PROTECTION_TEST = "PROTECTION_TEST", "Проверка защиты"
     PCAP_ANALYZE = "PCAP_ANALYZE", "Анализ PCAP"
     REPORT = "REPORT", "Отчёт"
 

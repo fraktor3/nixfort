@@ -84,10 +84,11 @@
 | `nft.apply_policy.v1` | M | `policy_version: 1..10⁶`, `management_sources: list[IPv4] 1..4`, `forward_allow: list[{src: IPv4\|CIDR, dst: IPv4, port: 1..65535}] ≤200`, `input_allow: list[{src: IPv4\|CIDR, port}] ≤20`, `rollback_timeout_s: 30..300` | `snapshot_id`, `validated`, `applied`, `timer_armed`, `rules_sha256`, `ruleset_sha256`. Отказ `conflict`, если `ip_forward≠1`, активен UFW/firewalld, есть правила Docker или чужие базовые цепочки с `policy drop` |
 | `suricata.read_status.v1` | R | — | service, version, config_test{ok, stderr_tail}, eve{enabled, path, readable, size}, af_packet_interfaces[], nixfort_test_rule_loaded |
 | `suricata.read_events.v1` | R | `since_ts: ISO8601 \| null`, `limit: 1..500`, `types: subset{alert, anomaly}` | events[] (только поля: timestamp, event_type, src_ip, src_port, dest_ip, dest_port, proto, alert{signature_id, signature, severity}) |
-| `suricata.apply_sensor_profile.v1` | M | `interface: ^[a-z0-9]{1,15}$` (должен существовать на узле), `enable_test_rule: bool`, `rollback_timeout_s` | `snapshot_id`, `validated (suricata -T)`, `applied`, `timer_armed` |
+| `suricata.apply_sensor_profile.v1` | M | `interface: ^[a-z][a-z0-9]{0,14}$` (должен существовать в /sys/class/net), `test_rules: bool`, `rollback_timeout_s` | `snapshot_id`, `validated (suricata -T)`, `applied`, `timer_armed`. Файлы: `/etc/suricata/nixfort-sensor.yaml`, `/etc/suricata/rules/nixfort-test.rules`, строка `include:` в `suricata.yaml` (все в снимке) |
 | `pkg.install_security_tool.v1` | M | `package: enum{fail2ban, suricata, nftables}` | `{installed: bool, version}` (`apt-get install -y --no-install-recommends`, `DEBIAN_FRONTEND=noninteractive`, таймаут 300 с; без снимка — отмечается в плане как необратимое) |
 | `net.tcp_probe.v1` | R | `targets: list[{ip: IPv4, port: int}] ≤50`, `timeout_ms: 200..5000` | results[{ip, port, result: OPEN\|CLOSED\|TIMEOUT\|UNREACHABLE, latency_ms}] (сокеты Python, без внешних программ) |
 | `net.send_ids_test.v1` | R* | `ip: IPv4`, `port: int` | `{sent: bool}` — TCP-соединение и отправка фиксированной строки `NIXFORT-IDS-TEST-7f3a` (для тестового правила Suricata) |
+| `net.ssh_login_attempts.v1` | R* | `ip: IPv4`, `port`, `count: 1..10` | attempts[{attempt, result: REJECTED\|CLOSED\|TIMEOUT\|ERROR, latency_ms}], summary — вход `ssh -o BatchMode=yes` под несуществующими `nixfort-test-N`, пароль не передаётся; для проверки Fail2ban и правила IDS |
 | `mutation.commit.v1` | M | `snapshot_id: ^[0-9a-f]{32}$` | `{timer_cancelled: bool}` |
 | `mutation.rollback_now.v1` | M | `snapshot_id` | `{rolled_back: bool, service_reloaded: bool}` |
 | `mutation.snapshot_status.v1` | R | `snapshot_id` | `{exists, kind, timer_active, rolled_back, committed}` |
@@ -127,8 +128,14 @@ table inet nixfort {
 
 Проверено на настоящем ядре (`agent/tests/test_nft_real.py`): три сетевых пространства клиент → шлюз → сервер; до правил 80/8080/22 OPEN, после — 80 OPEN, 8080/22 TIMEOUT; повторное применение не дублирует таблицу; удаление таблицы возвращает исходное состояние.
 
-## 8. Реализация (агент 1.2.0)
-Реализованы (агент 1.2.0): все read-действия, `nft.apply_policy.v1`, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`.
-В работе: `suricata.apply_sensor_profile.v1`.
+## 8. Реализация (агент 1.3.0)
+Реализованы (агент 1.3.0): все read-действия, `nft.apply_policy.v1`, `suricata.apply_sensor_profile.v1`, `net.ssh_login_attempts.v1`, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`.
+Все действия протокола реализованы.
+
+### Профиль датчика Suricata
+Включаемый файл `nixfort-sensor.yaml` полностью задаёт `af-packet` (интерфейс, 1 поток, cluster_flow, checksum-checks auto) и `rule-files`. Проверено на Suricata 7.0.3: последовательности во включаемом файле **заменяют** исходные (eth0 из конфигурации пакета исчезает). Отсутствующий файл правил делает `suricata -T` ошибочным, поэтому `suricata.rules` (suricata-update) подключается, только если существует. EVE не трогаем — в пакете он включён.
+Правила NIXFORT (фиксированный текст, sid 9000001…9000003): маркер `NIXFORT-IDS-TEST-7f3a` в установленном соединении; ≥20 SYN с одного адреса за 10 с (сканирование); ≥5 SYN на порт 22 за 60 с (подбор пароля). Датчик на интерфейсе сети пользователей видит пакеты **до** межсетевого экрана, поэтому фиксирует и заблокированные попытки.
+Активация: `enable` (если было выключено) + `restart`, ожидание устойчивого `ActiveState=active`. Откат: восстановить файлы → если служба работала — `restart`, иначе `stop`; если была выключена — `disable`.
+`read_events.since_ts` сравнивается как момент времени (смещения часовых поясов EVE `+0300`), а не как строка.
 
 Общий путь изменения (`nixfort_agent/mutation.py: guarded_apply`): снимок → запись кандидата → проверка (при ошибке — восстановление, FAILED) → таймер отката (`systemd-run`, при ошибке — восстановление, ERROR timer_failed) → активация (при ошибке — откат). Откат по таймеру выполняет `/usr/local/sbin/nixfort-agent-rollback <id>` (0700, только root, не в sudoers). Повторный откат идемпотентен (блокировка файла снимка).

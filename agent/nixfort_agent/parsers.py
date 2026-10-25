@@ -284,8 +284,23 @@ def parse_suricata_version(text: str) -> str | None:
 EVE_FIELDS = ("timestamp", "event_type", "src_ip", "src_port", "dest_ip", "dest_port", "proto")
 
 
+def _ts(value: Any):
+    """EVE timestamps carry the node's UTC offset (2026-10-26T01:14:06.272047+0300): compare as instants,
+    never as strings. Unparsable -> None."""
+    from datetime import datetime
+
+    if not isinstance(value, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return dt if dt.tzinfo is not None else None
+
+
 def parse_eve_lines(lines: list[str], since_ts: str | None, types: set[str], limit: int) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
+    since = _ts(since_ts) if since_ts else None
     for line in lines:
         try:
             ev = json.loads(line)
@@ -293,9 +308,10 @@ def parse_eve_lines(lines: list[str], since_ts: str | None, types: set[str], lim
             continue
         if not isinstance(ev, dict) or ev.get("event_type") not in types:
             continue
-        ts = ev.get("timestamp")
-        if since_ts and isinstance(ts, str) and ts <= since_ts:
-            continue
+        if since is not None:
+            ts = _ts(ev.get("timestamp"))
+            if ts is None or ts <= since:
+                continue
         item = {k: ev.get(k) for k in EVE_FIELDS}
         alert = ev.get("alert")
         if isinstance(alert, dict):

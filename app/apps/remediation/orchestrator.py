@@ -26,6 +26,9 @@ from apps.execution.transport import TransportError
 from .models import ItemState, PlanState, RemediationItem, RemediationPlan
 from .planner import plan_hash
 
+# Agent request deadlines per domain (seconds): apt and the Suricata engine start are slow on lab VMs.
+DEADLINES = {"pkg": 540, "suricata": 300}
+
 
 class ItemOutcome(Exception):
     def __init__(self, state: str, reason: str):
@@ -149,7 +152,34 @@ def _verify_nft(client: AgentClient, item: RemediationItem, env: dict | None = N
     return True, f"правила v{p['policy_version']} в ядре, пробы: {ok_n} из {len(rows)} соответствуют", evidence
 
 
+def _verify_suricata(client: AgentClient, item: RemediationItem, env: dict | None = None) -> tuple[bool, str, dict]:
+    r = client.call("suricata.read_status.v1", deadline_s=180)
+    if not r.ok:
+        return False, f"состояние датчика не получено ({r.state} {r.error_code})", r.as_fact()
+    res = r.result
+    eve = res.get("eve") or {}
+    iface = item.params["interface"]
+    problems = []
+    if res.get("service") != "active":
+        problems.append(f"служба {res.get('service')}")
+    if not (res.get("config_test") or {}).get("ok"):
+        problems.append("suricata -T не проходит")
+    if iface not in (res.get("af_packet_interfaces") or []):
+        problems.append(f"датчик не слушает {iface}")
+    if not (eve.get("enabled") and eve.get("readable")):
+        problems.append("журнал EVE недоступен")
+    if item.params.get("test_rules") and not res.get("nixfort_test_rule_loaded"):
+        problems.append("правила NIXFORT не загружены")
+    evidence = {
+        k: res.get(k) for k in ("service", "version", "af_packet_interfaces", "eve", "nixfort_test_rule_loaded")
+    }
+    if problems:
+        return False, "; ".join(problems), evidence
+    return True, f"Suricata {res.get('version')} работает на {iface}, EVE пишется, правила NIXFORT загружены", evidence
+
+
 VERIFY: dict[str, Callable[..., tuple[bool, str, dict]]] = {
+    "suricata.apply_sensor_profile.v1": _verify_suricata,
     "pkg.install_security_tool.v1": _verify_pkg,
     "fail2ban.apply_sshd_profile.v1": _verify_f2b,
     "ssh.apply_hardening_profile.v1": _verify_ssh,
@@ -210,7 +240,7 @@ def run_item(job: Job, item: RemediationItem, log: Callable[[str, str], None], c
             _precheck_nft(item, env)
         _save(item, ItemState.APPLYING)
         log(f"{node.name}: {item.action_id} — применение", "INFO")
-        resp = client.call(item.action_id, item.params, deadline_s=540 if item.action_id.startswith("pkg.") else 120)
+        resp = client.call(item.action_id, item.params, deadline_s=DEADLINES.get(item.action_id.split(".")[0], 120))
         if resp.state in ("FAILED", "REJECTED"):
             raise ItemOutcome(
                 ItemState.FAILED,

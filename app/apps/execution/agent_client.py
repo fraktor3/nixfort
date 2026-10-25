@@ -28,6 +28,7 @@ KNOWN_ACTIONS: dict[str, bool] = {  # name -> mutating
     "suricata.read_events.v1": False,
     "net.tcp_probe.v1": False,
     "net.send_ids_test.v1": False,
+    "net.ssh_login_attempts.v1": False,
     "mutation.snapshot_status.v1": False,
     # mutating (only the remediation orchestrator, queue "mutation", may call these)
     "pkg.install_security_tool.v1": True,
@@ -35,6 +36,7 @@ KNOWN_ACTIONS: dict[str, bool] = {  # name -> mutating
     "fail2ban.unban.v1": True,
     "ssh.apply_hardening_profile.v1": True,
     "nft.apply_policy.v1": True,
+    "suricata.apply_sensor_profile.v1": True,
     "mutation.commit.v1": True,
     "mutation.rollback_now.v1": True,
 }

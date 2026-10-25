@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% load nx %}
+{% block title %}Проверка защиты — {{ project.name }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / проверка защиты</nav>
+<h1 class="h3">Проверка защиты</h1>
+<p class="text-muted small">Имитация атак с тестового клиента по стенду и проверка, какой уровень защиты сработал. Уровень засчитывается только по наблюдаемому факту: соединение не установлено, адрес в списке блокировки Fail2ban, событие Suricata от адреса атакующего. Нагрузочные атаки (DDoS) не выполняются.</p>
+<div class="row g-3">
+{% for s, t in scenarios %}<div class="col-lg-4"><div class="card h-100"><div class="card-header d-flex justify-content-between align-items-center"><b>{{ s.label }}</b>
+  {% if t %}<span class="badge text-bg-{% if t.verdict == 'PROTECTED' %}success{% elif t.verdict == 'PARTIAL' %}warning{% elif t.verdict == 'NOT_PROTECTED' %}danger{% else %}secondary{% endif %}">{{ t.get_verdict_display }}</span>{% endif %}</div>
+  <div class="card-body small">
+  {% if s.value == "IDS_MARKER" %}<p>Клиент открывает разрешённое соединение и передаёт строку <span class="mono">NIXFORT-IDS-TEST-7f3a</span>. Ожидается событие Suricata на шлюзе.</p>
+  {% elif s.value == "PORT_SCAN" %}<p>Клиент проверяет 40 TCP-портов сервера через шлюз. Ожидается: открыты только разрешённые политикой порты; Suricata фиксирует сканирование.</p>
+  {% else %}<p>A — 6 попыток входа на сервер через шлюз (SSH из сети пользователей запрещён политикой). B — 7 попыток напрямую в сети управления, где шлюза нет. Ожидается: экран не пропускает A, Suricata фиксирует A, Fail2ban блокирует B на время bantime. Пароли не передаются.</p>{% endif %}
+  {% if t %}<div class="text-muted mb-1">{{ t.created_at|date:"d.m.Y H:i:s" }} · <a href="{% url 'ids:protection_detail' project.id t.id %}">подробно</a></div>{% include "ids/_layers.html" %}{% endif %}
+  </div>
+  <div class="card-footer">{% if s.value == "IDS_MARKER" and can_marker or s.value != "IDS_MARKER" and can_attack %}
+    <form method="post" action="{% url 'ids:protection_run' project.id s.value %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">Запустить</button></form>
+  {% else %}<span class="text-muted small">{% if s.value == "IDS_MARKER" %}нужна роль оператора{% else %}только администратор{% endif %}</span>{% endif %}</div>
+</div></div>{% endfor %}
+</div>
+{% if history %}<h2 class="h6 mt-4">История</h2>
+<ul class="small">{% for t in history %}<li><a href="{% url 'ids:protection_detail' project.id t.id %}">{{ t.created_at|date:"d.m.Y H:i:s" }}</a> — {{ t.get_scenario_display }}: {{ t.get_verdict_display }}</li>{% endfor %}</ul>{% endif %}
+{% endblock %}

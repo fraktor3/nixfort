@@ -14,6 +14,7 @@ from nixfort_agent.runner import RunResult
 from .helpers import make_ctx, ok, request
 
 SSHD_CONFIG = "Include /etc/ssh/sshd_config.d/*.conf\nPort 22\n"
+SURI_YAML = "%YAML 1.1\n---\naf-packet:\n  - interface: eth0\n"
 NFT_CONF = "#!/usr/sbin/nft -f\n\nflush ruleset\n\ntable inet filter {\n}\n"
 
 
@@ -30,7 +31,14 @@ class FakeSystem:
         nft_valid=True,
         nft_ruleset=None,
         nft_enabled=False,
+        suri_valid=True,
+        suri_starts=True,
+        suri_active=False,
+        suri_enabled=False,
     ):
+        self.suri_valid, self.suri_starts = suri_valid, suri_starts
+        self.suri_active, self.suri_enabled = suri_active, suri_enabled
+        self.suri_events: list[str] = []
         self.sshd_t_seq = list(sshd_t_seq or [])
         self.nft_valid, self.nft_enabled = nft_valid, nft_enabled
         self.nft_ruleset = nft_ruleset or {"nftables": []}
@@ -52,6 +60,21 @@ class FakeSystem:
             unit = a[0].split("=", 1)[1]
             self.timers.add(unit + ".timer")
             return ok()
+        if name == "systemctl" and a[-1] == "suricata.service":
+            if a[0] == "show":
+                return ok(f"ActiveState={'active' if self.suri_active else 'failed'}\n")
+            if a[0] == "is-enabled":
+                return ok("enabled\n" if self.suri_enabled else "disabled\n")
+            self.suri_events.append(a[0])
+            if a[0] == "restart":
+                self.suri_active = self.suri_starts
+            elif a[0] == "stop":
+                self.suri_active = False
+            elif a[0] in ("enable", "disable"):
+                self.suri_enabled = a[0] == "enable"
+            return ok()
+        if name == "suricata" and a[0] == "-T":
+            return ok() if self.suri_valid else RunResult(1, "", "Error: bad af-packet", False)
         if name == "systemctl":
             if a[0] == "show":
                 return ok(f"ActiveState={'active' if a[1] in self.timers else 'inactive'}\n")
@@ -115,7 +138,16 @@ class Env:
             f2b_owned=f"{root}/jail.d/nixfort-sshd.local",
             nft_owned=f"{root}/nftables.d/nixfort.nft",
             nft_conf=f"{root}/nftables.conf",
+            suricata_yaml=f"{root}/suricata/suricata.yaml",
+            suricata_owned=f"{root}/suricata/nixfort-sensor.yaml",
+            suricata_test_rules=f"{root}/suricata/rules/nixfort-test.rules",
+            suricata_dist_rules=f"{root}/var-lib-suricata/suricata.rules",
+            sys_class_net=f"{root}/sys-class-net",
         )
+        os.makedirs(f"{root}/sys-class-net/enp0s9")
+        os.makedirs(f"{root}/suricata")
+        with open(paths["suricata_yaml"], "w") as fh:
+            fh.write(SURI_YAML)
         # every tool resolves to an existing "executable" so os.access checks pass
         bins = {k: (f"{root}/bin/{os.path.basename(v[0])}",) for k, v in UBUNTU_2404.bins.items()}
         os.makedirs(f"{root}/bin")
@@ -128,6 +160,7 @@ class Env:
         with open(paths["nft_conf"], "w") as fh:
             fh.write(NFT_CONF)
         self.files[paths["nft_conf"]] = NFT_CONF
+        self.files[paths["suricata_yaml"]] = SURI_YAML
 
     def _access(self, path, mode, _real=os.access):
         # /tmp in the controller container is a noexec tmpfs, where access(X_OK)
@@ -387,6 +420,72 @@ class NftPolicyTests(unittest.TestCase):
         ):
             self.assertEqual(e.call("nft.apply_policy.v1", bad)["state"], "REJECTED", bad)
         self.assertEqual(e.sys.nft_events, [])
+
+
+SURI_PARAMS = {"interface": "enp0s9", "test_rules": True, "rollback_timeout_s": 180}
+
+
+class SuricataProfileTests(unittest.TestCase):
+    def setUp(self):
+        # restart waits with time.sleep between state polls
+        patcher = mock.patch("nixfort_agent.actions.suricata.time.sleep")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_apply_from_failing_default(self):
+        e = Env()  # fresh package: service failed on eth0, disabled
+        r = e.call("suricata.apply_sensor_profile.v1", SURI_PARAMS)
+        self.assertEqual(r["state"], "OK", r)
+        owned = open(e.profile.paths["suricata_owned"]).read()
+        self.assertIn("  - interface: enp0s9\n", owned)
+        self.assertIn(e.profile.paths["suricata_test_rules"], owned)
+        self.assertNotIn("suricata.rules", owned)  # no distribution rules on the node -> not referenced
+        rules = open(e.profile.paths["suricata_test_rules"]).read()
+        self.assertIn("NIXFORT-IDS-TEST-7f3a", rules)
+        self.assertIn("sid:9000002", rules) and self.assertIn("sid:9000003", rules)
+        conf = open(e.profile.paths["suricata_yaml"]).read()
+        self.assertTrue(conf.startswith(SURI_YAML.rstrip("\n")))
+        self.assertEqual(conf.count("include: " + e.profile.paths["suricata_owned"]), 1)
+        self.assertEqual(e.sys.suri_events, ["enable", "restart"])
+        self.assertTrue(e.sys.suri_active)
+
+    def test_keeps_distribution_rules(self):
+        e = Env()
+        os.makedirs(os.path.dirname(e.profile.paths["suricata_dist_rules"]))
+        open(e.profile.paths["suricata_dist_rules"], "w").close()
+        e.call("suricata.apply_sensor_profile.v1", SURI_PARAMS)
+        self.assertIn("  - suricata.rules", open(e.profile.paths["suricata_owned"]).read())
+
+    def test_service_does_not_come_up_is_rolled_back(self):
+        e = Env(suri_starts=False)
+        r = e.call("suricata.apply_sensor_profile.v1", SURI_PARAMS)
+        self.assertEqual(r["state"], "ERROR", r)
+        self.assertFalse(os.path.exists(e.profile.paths["suricata_owned"]))
+        self.assertEqual(open(e.profile.paths["suricata_yaml"]).read(), SURI_YAML)
+        self.assertIn("disable", e.sys.suri_events)  # was disabled before -> disabled again
+        self.assertEqual(e.sys.timers, set())
+
+    def test_invalid_config_nothing_restarted(self):
+        e = Env(suri_valid=False)
+        r = e.call("suricata.apply_sensor_profile.v1", SURI_PARAMS)
+        self.assertEqual((r["state"], r["error_code"]), ("FAILED", "validation_failed"))
+        self.assertEqual(e.sys.suri_events, [])
+        self.assertFalse(os.path.exists(e.profile.paths["suricata_test_rules"]))
+
+    def test_rollback_restores_running_sensor(self):
+        e = Env(suri_active=True, suri_enabled=True)
+        sid = e.call("suricata.apply_sensor_profile.v1", SURI_PARAMS)["result"]["snapshot_id"]
+        e.call("mutation.rollback_now.v1", {"snapshot_id": sid})
+        self.assertFalse(os.path.exists(e.profile.paths["suricata_owned"]))
+        self.assertEqual(e.sys.suri_events, ["restart", "restart"])
+        self.assertTrue(e.sys.suri_active)
+
+    def test_interface_and_injection(self):
+        e = Env()
+        for bad in ("eth9", "enp0s9\nrule-files: []", "../../etc", "ENP0S9", "a" * 16, ""):
+            r = e.call("suricata.apply_sensor_profile.v1", {**SURI_PARAMS, "interface": bad})
+            self.assertEqual(r["state"], "REJECTED", bad)
+        self.assertEqual(e.sys.suri_events, [])
 
 
 class RollbackLauncherTests(unittest.TestCase):

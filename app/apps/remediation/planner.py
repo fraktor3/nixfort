@@ -22,6 +22,7 @@ SUPPORTED_NOW = {
     "fail2ban.apply_sshd_profile.v1",
     "ssh.apply_hardening_profile.v1",
     "nft.apply_policy.v1",
+    "suricata.apply_sensor_profile.v1",
 }
 # Default hardening values (CHECKS_CATALOG expectations).
 SSH_PROFILE = {"permit_root_login": "no", "max_auth_tries": 4, "login_grace_time_s": 60, "x11_forwarding": False}
@@ -131,6 +132,47 @@ def _nft_drafts(run: AuditRun, node, ids: set[str], packages: dict, facts: dict)
     return drafts, []
 
 
+def _ids_drafts(node, ids: set[str], packages: dict) -> tuple[list[Draft], list[dict]]:
+    """Suricata sensor: install if missing, then the sensor profile (interface + NIXFORT detection rules)."""
+    fail = sorted(ids & {"IDS-01", "IDS-02", "IDS-03"})
+    if not fail:
+        return [], []
+    if not node.has_role("ids_sensor") or not node.ids_interface:
+        return [], [{"node": node.name, "check_id": c, "reason": "У узла не задан интерфейс датчика IDS"} for c in fail]
+    drafts = []
+    if not packages.get("suricata"):
+        drafts.append(
+            Draft(
+                node,
+                0,
+                ["IDS-01"],
+                "pkg.install_security_tool.v1",
+                {"package": "suricata"},
+                "LOW",
+                False,
+                "Установить Suricata из репозитория дистрибутива",
+            )
+        )
+    drafts.append(
+        Draft(
+            node,
+            3,
+            fail,
+            "suricata.apply_sensor_profile.v1",
+            {
+                "interface": node.ids_interface,
+                "test_rules": True,
+                "rollback_timeout_s": max(settings.NIXFORT_ROLLBACK_TIMEOUT_S, 180),
+            },
+            "MEDIUM",
+            True,
+            f"Датчик Suricata на интерфейсе {node.ids_interface}: журнал EVE, правила NIXFORT "
+            "(тестовый маркер, сканирование портов, подбор пароля SSH)",
+        )
+    )
+    return drafts, []
+
+
 def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[dict]]:
     fails = run.results.filter(status="FAIL").select_related("node", "node__project")
     by_node: dict = {}
@@ -219,6 +261,9 @@ def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[di
         fw_drafts, fw_missing = _nft_drafts(run, node, ids, packages, facts)
         drafts += fw_drafts
         not_covered += fw_missing
+        ids_drafts, ids_missing = _ids_drafts(node, ids, packages)
+        drafts += ids_drafts
+        not_covered += ids_missing
 
         covered = {c for d in drafts if d.node == node for c in d.check_ids}
         for cid in sorted(ids - covered):
@@ -227,7 +272,7 @@ def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[di
                 "SYS-02": "Синхронизация времени — только рекомендация",
                 "SYS-03": "Системный журнал — только рекомендация",
                 "SYS-04": "Лишние службы отключаются вручную (или запрещаются политикой на шлюзе)",
-            }.get(cid, "Исправление появится на следующем этапе (Suricata)")
+            }.get(cid, "Автоматического исправления нет")
             if not any(n["node"] == node.name and n["check_id"] == cid for n in not_covered):
                 not_covered.append({"node": node.name, "check_id": cid, "reason": reason})
     drafts.sort(key=lambda d: (d.order_key, d.node.name))
