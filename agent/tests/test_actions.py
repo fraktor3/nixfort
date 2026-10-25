@@ -160,7 +160,9 @@ def _netns_ok() -> bool:
     if os.geteuid() != 0 or not os.path.exists("/usr/sbin/nft"):
         return False
     try:
-        return subprocess.run(["unshare", "-n", "true"], capture_output=True, timeout=10).returncode == 0
+        # exactly what the test needs: a new netns AND nft working inside it (CAP_NET_ADMIN)
+        probe = ["unshare", "-n", "/usr/sbin/nft", "list", "ruleset"]
+        return subprocess.run(probe, capture_output=True, timeout=10).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
 
