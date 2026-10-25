@@ -35,7 +35,9 @@ class FakeSystem:
         suri_starts=True,
         suri_active=False,
         suri_enabled=False,
+        suri_start_limited=False,
     ):
+        self.suri_start_limited = suri_start_limited
         self.suri_valid, self.suri_starts = suri_valid, suri_starts
         self.suri_active, self.suri_enabled = suri_active, suri_enabled
         self.suri_events: list[str] = []
@@ -66,7 +68,11 @@ class FakeSystem:
             if a[0] == "is-enabled":
                 return ok("enabled\n" if self.suri_enabled else "disabled\n")
             self.suri_events.append(a[0])
+            if a[0] == "reset-failed":
+                self.suri_start_limited = False
             if a[0] == "restart":
+                if self.suri_start_limited:  # systemd: "Start request repeated too quickly"
+                    return RunResult(1, "", "Job for suricata.service failed", False)
                 self.suri_active = self.suri_starts
             elif a[0] == "stop":
                 self.suri_active = False
@@ -89,6 +95,9 @@ class FakeSystem:
                 return ok()
             if a[0] in ("try-reload-or-restart", "restart"):
                 self.reloads += 1
+                if getattr(self, "reload_fail_once", False):
+                    self.reload_fail_once = False
+                    return RunResult(1, "", "failed", False)
                 return ok() if self.reload_ok else RunResult(1, "", "failed", False)
             return ok()
         if name == "sshd":
@@ -249,6 +258,19 @@ class SshProfileTests(unittest.TestCase):
         self.assertEqual((r["state"], r["error_code"]), ("ERROR", "timer_failed"))
         self.assertFalse(os.path.exists(e.profile.paths["sshd_owned"]))
         self.assertEqual(e.sys.reloads, 0)
+
+    def test_reload_failure_is_rolled_back_and_reported_failed(self):
+        e = Env()
+        e.sys.reload_fail_once = True  # the new config does not activate, the restored one does
+        r = e.call("ssh.apply_hardening_profile.v1", SSH_PARAMS)
+        self.assertEqual((r["state"], r["error_code"]), ("FAILED", "activation_failed"), r)
+        self.assertFalse(os.path.exists(e.profile.paths["sshd_owned"]))
+        self.assertEqual(e.sys.timers, set())
+
+    def test_unconfirmed_rollback_is_an_error(self):
+        e = Env(reload_ok=False)  # even the restored config cannot be activated
+        r = e.call("ssh.apply_hardening_profile.v1", SSH_PARAMS)
+        self.assertEqual((r["state"], r["error_code"]), ("ERROR", "rollback_failed"), r)
 
     def test_rollback_now_restores_previous(self):
         e = Env()
@@ -446,8 +468,15 @@ class SuricataProfileTests(unittest.TestCase):
         conf = open(e.profile.paths["suricata_yaml"]).read()
         self.assertTrue(conf.startswith(SURI_YAML.rstrip("\n")))
         self.assertEqual(conf.count("include: " + e.profile.paths["suricata_owned"]), 1)
-        self.assertEqual(e.sys.suri_events, ["enable", "restart"])
+        self.assertEqual(e.sys.suri_events, ["enable", "reset-failed", "restart"])
         self.assertTrue(e.sys.suri_active)
+
+    def test_after_package_crash_loop_start_limit_is_cleared(self):
+        # S-006: apt starts the packaged service on eth0, it crash-loops and systemd blocks restarts
+        e = Env(suri_start_limited=True, suri_enabled=True)
+        r = e.call("suricata.apply_sensor_profile.v1", SURI_PARAMS)
+        self.assertEqual(r["state"], "OK", r)
+        self.assertLess(e.sys.suri_events.index("reset-failed"), e.sys.suri_events.index("restart"))
 
     def test_keeps_distribution_rules(self):
         e = Env()
@@ -459,7 +488,8 @@ class SuricataProfileTests(unittest.TestCase):
     def test_service_does_not_come_up_is_rolled_back(self):
         e = Env(suri_starts=False)
         r = e.call("suricata.apply_sensor_profile.v1", SURI_PARAMS)
-        self.assertEqual(r["state"], "ERROR", r)
+        # previous state restored and confirmed by the agent -> FAILED (nothing changed), not ERROR/unknown
+        self.assertEqual((r["state"], r["error_code"]), ("FAILED", "activation_failed"), r)
         self.assertFalse(os.path.exists(e.profile.paths["suricata_owned"]))
         self.assertEqual(open(e.profile.paths["suricata_yaml"]).read(), SURI_YAML)
         self.assertIn("disable", e.sys.suri_events)  # was disabled before -> disabled again
@@ -477,7 +507,7 @@ class SuricataProfileTests(unittest.TestCase):
         sid = e.call("suricata.apply_sensor_profile.v1", SURI_PARAMS)["result"]["snapshot_id"]
         e.call("mutation.rollback_now.v1", {"snapshot_id": sid})
         self.assertFalse(os.path.exists(e.profile.paths["suricata_owned"]))
-        self.assertEqual(e.sys.suri_events, ["restart", "restart"])
+        self.assertEqual(e.sys.suri_events, ["reset-failed", "restart", "reset-failed", "restart"])
         self.assertTrue(e.sys.suri_active)
 
     def test_interface_and_injection(self):

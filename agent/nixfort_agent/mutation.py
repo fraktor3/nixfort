@@ -92,9 +92,12 @@ def guarded_apply(
     try:
         activate()
     except AgentError as exc:
-        perform_rollback(ctx, snap.id)
+        rb = perform_rollback(ctx, snap.id)
         rollback_timer.cancel(ctx, snap.id)
-        raise AgentError(exc.code, "activation failed, rolled back") from None
+        if rb.get("rolled_back"):
+            # S-006: the previous state is restored and confirmed by the agent -> a clean FAILED, not "unknown"
+            raise Failed("activation_failed", f"{exc.code}: {exc.detail}"[-300:]) from None
+        raise AgentError("rollback_failed", f"activation failed ({exc.code}) and rollback failed") from None
     return {
         "snapshot_id": snap.id,
         "validated": True,

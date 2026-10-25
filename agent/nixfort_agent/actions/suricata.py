@@ -158,6 +158,9 @@ def _enabled(ctx: Context) -> bool:
 
 def _restart(ctx: Context) -> None:
     unit = ctx.profile.units["suricata"]
+    # S-006: right after `apt-get install` the packaged service crash-loops on its default interface (eth0) and
+    # systemd blocks further starts ("Start request repeated too quickly"). Clear that state first.
+    ctx.tool("systemctl", "reset-failed", unit, timeout=15)
     res = ctx.tool("systemctl", "restart", unit, timeout=120)
     if res.returncode != 0:
         raise AgentError("tool_failed", "suricata restart failed")

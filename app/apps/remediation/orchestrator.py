@@ -26,6 +26,15 @@ from apps.execution.transport import TransportError
 from .models import ItemState, PlanState, RemediationItem, RemediationPlan
 from .planner import plan_hash
 
+# Agent FAILED/REJECTED codes: nothing was changed on the node (or the change was rolled back and confirmed).
+AGENT_REFUSALS = {
+    "validation_failed": "новая конфигурация не прошла проверку на узле",
+    "activation_failed": "служба не запустилась с новой конфигурацией, агент восстановил прежнюю",
+    "conflict": "на узле обнаружен конфликт (другой менеджер правил или узел не шлюз)",
+    "tool_missing": "нужная программа не установлена на узле",
+    "invalid_params": "узел отклонил параметры",
+}
+
 # Agent request deadlines per domain (seconds): apt and the Suricata engine start are slow on lab VMs.
 DEADLINES = {"pkg": 540, "suricata": 300}
 
@@ -242,10 +251,8 @@ def run_item(job: Job, item: RemediationItem, log: Callable[[str, str], None], c
         log(f"{node.name}: {item.action_id} — применение", "INFO")
         resp = client.call(item.action_id, item.params, deadline_s=DEADLINES.get(item.action_id.split(".")[0], 120))
         if resp.state in ("FAILED", "REJECTED"):
-            raise ItemOutcome(
-                ItemState.FAILED,
-                f"агент не применил изменение: {resp.state} {resp.error_code} — исходная конфигурация не изменена",
-            )
+            why = AGENT_REFUSALS.get(resp.error_code or "", f"{resp.state} {resp.error_code}")
+            raise ItemOutcome(ItemState.FAILED, f"изменение не применено: {why} — исходная конфигурация на месте")
         if resp.state != "OK":
             # transport/protocol error during a mutation: we do not know what happened on the node
             return _recover_unknown(item, resp, log, client_factory, sleep, env=env)
@@ -299,11 +306,12 @@ def _rollback(item, why, log, client_factory, sleep, env=None) -> str:
 def _recover_unknown(item, resp, log, client_factory, sleep, reason: str = "", env=None) -> str:
     """Node did not answer during a mutation. Wait for the node-side timer, then ask again."""
     if not item.snapshot_id or not item.reversible:
-        raise ItemOutcome(
-            ItemState.UNKNOWN,
-            f"связь потеряна во время изменения ({resp.error_code}); "
-            "состояние узла не подтверждено — проверьте узел вручную",
+        what = (
+            f"агент сообщил ошибку {resp.error_code} во время изменения"
+            if resp.state == "ERROR"
+            else f"связь потеряна во время изменения ({resp.error_code})"
         )
+        raise ItemOutcome(ItemState.UNKNOWN, f"{what}; состояние узла не подтверждено — проверьте узел вручную")
     wait = int(item.params.get("rollback_timeout_s", settings.NIXFORT_ROLLBACK_TIMEOUT_S)) + 30
     log(f"{item.node.name}: нет связи ({resp.error_code}); ожидание автоотката на узле {wait} с", "WARN")
     sleep(wait)

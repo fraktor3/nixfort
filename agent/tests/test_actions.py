@@ -153,7 +153,19 @@ class NetProbeTests(unittest.TestCase):
         self.assertEqual(r["result"]["results"][0]["result"], "CLOSED")
 
 
-@unittest.skipUnless(os.geteuid() == 0 and os.path.exists("/usr/sbin/nft"), "needs root and nft")
+def _netns_ok() -> bool:
+    """Root alone is not enough: inside a container without CAP_SYS_ADMIN `unshare -n` is refused (S-006)."""
+    import subprocess
+
+    if os.geteuid() != 0 or not os.path.exists("/usr/sbin/nft"):
+        return False
+    try:
+        return subprocess.run(["unshare", "-n", "true"], capture_output=True, timeout=10).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+@unittest.skipUnless(_netns_ok(), "needs root, nft and permission to create network namespaces")
 class SshLoginAttemptsTests(unittest.TestCase):
     def test_outcomes_and_fixed_argv(self):
         replies = iter(

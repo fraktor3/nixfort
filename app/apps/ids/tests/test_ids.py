@@ -249,3 +249,30 @@ def test_fetch_events_and_pages(client_as, operator, project, policy, monkeypatc
     page = client_as(operator).get(reverse("ids:protection", args=[project.id])).content.decode()
     assert "Подбор пароля SSH" in page and "только администратор" in page
     assert ipaddress  # noqa
+
+
+def test_activation_failed_on_node_is_failed_not_unknown(client_as, admin, operator, baseline_run, monkeypatch):
+    """S-006: the agent restored the previous state itself -> the step is FAILED with a clear reason."""
+    plan = planner.create_plan(baseline_run, operator, key_only_confirmed=False)
+    plan.items.exclude(action_id="suricata.apply_sensor_profile.v1").delete()
+    lab = Lab(suricata_installed=True)
+    real = lab.for_node
+
+    def for_node(node):
+        c = real(node)
+        orig = c.call
+
+        def call(action, params=None, deadline_s=60):
+            if action == "suricata.apply_sensor_profile.v1":
+                return AgentResponse(action=action, state="FAILED", error_code="activation_failed")
+            return orig(action, params, deadline_s)
+
+        c.call = call
+        return c
+
+    monkeypatch.setattr(orchestrator, "client_for", for_node)
+    client_as(admin).post(reverse("remediation:plan_approve", args=[plan.project_id, plan.id]), {"confirm": "on"})
+    plan.refresh_from_db()
+    item = plan.items.get()
+    assert item.state == ItemState.FAILED and "восстановил прежнюю" in item.result["reason"]
+    assert plan.state == PlanState.FAILED
