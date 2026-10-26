@@ -102,7 +102,7 @@ remediation ◄── reports
 | policy | `ConnectivityTest` | project, job, plan_item?, phase {CHECK, BASELINE, POST, AFTER_ROLLBACK}, копия потока (версия, src, dst, порт, действие, критичность), probe_node, result {OPEN, CLOSED, TIMEOUT, UNREACHABLE, ERROR, NOT_RUN}, latency_ms, verdict {OK, VIOLATION, UNPROVABLE, NOT_CHECKED}, note |
 | ids | `IdsEvent` | node, ts, event_type, src_ip, src_port, dst_ip, dst_port, proto, signature_id, signature, severity |
 | pcap | `PcapAnalysis` | project, uploaded_by, sha256, size, profile, state, result JSON |
-| reports | `Report` | project, kind, source ids JSON, format, file, sha256, generated_by |
+| reports | `Report` | project, title, before_run, after_run, generated_by, data JSON (неизменяемый), sha256 |
 
 ## 4. Состояния
 

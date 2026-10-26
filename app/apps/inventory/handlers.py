@@ -7,7 +7,7 @@ from django.utils import timezone
 from apps.execution import services
 from apps.execution.models import Job, JobState, JobType
 from apps.execution.registry import register
-from apps.execution.transport import TransportError, fetch_host_key
+from apps.execution.transport import TRANSPORT_HINTS, TransportError, fetch_host_key
 
 from . import collector
 from . import validators as v
@@ -48,7 +48,8 @@ def fetch_hostkey(job: Job):
     try:
         key_type, blob = fetch_host_key(node.mgmt_ip, node.ssh_port)
     except TransportError as exc:
-        services.log(job, f"Не удалось получить ключ: {exc.code}", "ERROR")
+        hint = TRANSPORT_HINTS.get(exc.code, "")
+        services.log(job, f"Не удалось получить ключ: {exc.code}" + (f" — {hint}" if hint else ""), "ERROR")
         return JobState.FAILED, {"error": exc.code}
     _, _, fp = v.parse_hostkey_line(f"{key_type} {blob}")
     inv_services.set_hostkey(

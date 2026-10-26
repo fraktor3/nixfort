@@ -11,7 +11,7 @@ from django.utils import timezone
 from apps.core import audit
 from apps.core.models import Action, Outcome
 from apps.execution.agent_client import AgentResponse, client_for
-from apps.execution.transport import TransportError
+from apps.execution.transport import TRANSPORT_HINTS, TransportError
 
 from .models import InventorySnapshot, Node
 
@@ -44,6 +44,7 @@ def fact_keys_for(node: Node) -> list[str]:
 
 TRANSPORT_STATUS = {
     "unreachable": Node.Status.UNREACHABLE,
+    "connection_refused": Node.Status.UNREACHABLE,
     "timeout": Node.Status.UNREACHABLE,
     "host_key_mismatch": Node.Status.KEY_PENDING,
     "host_key_not_confirmed": Node.Status.KEY_PENDING,
@@ -87,6 +88,8 @@ def collect_node(node: Node, job=None, log=None) -> InventorySnapshot:
         agent_version=agent_version[:20],
         sha256=_sha(facts),
     )
+    if log and transport_error in TRANSPORT_HINTS:
+        log(f"{node.name}: {TRANSPORT_HINTS[transport_error]}")
     _update_node_status(node, facts, transport_error, job)
     return snap
 

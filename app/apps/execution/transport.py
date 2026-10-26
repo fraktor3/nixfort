@@ -9,6 +9,16 @@ from dataclasses import dataclass
 
 import paramiko
 
+# What an operator should check for each transport error (shown in job logs).
+TRANSPORT_HINTS = {
+    "connection_refused": "узел доступен, но порт SSH закрыт: проверьте SSH-порт в карточке узла и что sshd запущен",
+    "timeout": "узел не ответил вовремя: выключен, перегружен или трафик блокируется",
+    "unreachable": "нет сетевого маршрута до узла: проверьте адрес управления и сеть",
+    "host_key_mismatch": "ключ узла не совпадает с подтверждённым: возможна подмена узла или его переустановка",
+    "auth_failed": "узел отклонил ключ контроллера: агент не установлен или ключ другой",
+    "host_key_not_confirmed": "ключ узла ещё не подтверждён администратором",
+}
+
 
 class TransportError(Exception):
     """code: safe identifier shown to users and stored in jobs."""
@@ -62,6 +72,8 @@ class SSHTransport:
             raise TransportError("ssh_error") from exc
         except TimeoutError as exc:
             raise TransportError("timeout") from exc
+        except ConnectionRefusedError as exc:
+            raise TransportError("connection_refused") from exc
         except OSError as exc:
             raise TransportError("unreachable") from exc
         return client
@@ -101,6 +113,10 @@ def fetch_host_key(host: str, port: int, timeout: float = 10.0) -> tuple[str, st
     an administrator must compare the fingerprint obtained through a trusted channel."""
     try:
         sock = socket.create_connection((host, port), timeout=timeout)
+    except ConnectionRefusedError as exc:
+        raise TransportError("connection_refused") from exc
+    except TimeoutError as exc:
+        raise TransportError("timeout") from exc
     except OSError as exc:
         raise TransportError("unreachable") from exc
     t = paramiko.Transport(sock)

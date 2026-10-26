@@ -1,0 +1,60 @@
+{% load nx %}
+<div class="alert alert-light small">Сформирован {{ d.generated_at|isodt }} · {{ d.generated_by|default:"—" }} · NIXFORT {{ d.nixfort_version }}, каталог проверок {{ d.catalog_version }} · полнота отчёта: <b>{{ complete }} из 7</b> обязательных элементов</div>
+
+<h2>1. Объект проверки</h2>
+<p>Проект <b>{{ d.scope.project.name }}</b>{% if d.scope.project.description %} — {{ d.scope.project.description }}{% endif %}. Подсети: <span class="mono">{{ d.scope.project.cidrs|join:", " }}</span>. Управление: контроллер <span class="mono">{{ d.scope.project.controller_ip }}</span>{% if d.scope.project.admin_sources %}, администраторы <span class="mono">{{ d.scope.project.admin_sources|join:", " }}</span>{% endif %}.</p>
+<table class="table table-sm"><thead><tr><th>Узел</th><th>Адреса</th><th>Роли</th><th>ОС / ядро</th><th>Агент</th><th>Ключ узла (SHA256)</th></tr></thead><tbody>
+{% for n in d.scope.nodes %}<tr><td>{{ n.name }}</td><td class="mono">{{ n.mgmt_ip }}{% if n.data_ips %}<br>{{ n.data_ips|join:", " }}{% endif %}</td><td class="small">{{ n.roles|join:", " }}</td>
+  <td class="small">{{ n.os|default:"—" }}{% if n.kernel %}<br>{{ n.kernel }}{% endif %}</td><td class="small">{{ n.agent_version|default:"—" }}</td><td class="mono">{{ n.hostkey|default:"не подтверждён" }}</td></tr>{% endfor %}</tbody></table>
+{% if d.scope.policy %}<h3>Политика соединений v{{ d.scope.policy.version }}</h3>
+<table class="table table-sm"><thead><tr><th>Поток</th><th>Источник → назначение</th><th>Ожидание</th><th>Проба с</th></tr></thead><tbody>
+{% for f in d.scope.policy.flows %}<tr><td>{{ f.name }}{% if f.critical %} (критичный){% endif %}</td><td class="mono">{{ f.src }} → {{ f.dst }}</td><td>{% if f.action == "ALLOW" %}разрешён{% else %}запрещён{% endif %}</td><td>{{ f.probe_from|default:"—" }}</td></tr>{% endfor %}</tbody></table>
+{% else %}<p class="text-muted">Активной политики соединений нет.</p>{% endif %}
+
+<h2>2. Исходное состояние</h2>
+<p>Аудит {{ d.before.at|isodt }}: {% for k, v in before_totals.items %}<span class="badge text-bg-{{ k|status_class }}">{{ k }} {{ v }}</span> {% endfor %}</p>
+<table class="table table-sm"><thead><tr><th>Узел</th><th>Проверка</th><th>Важность</th><th>Статус</th><th>Объяснение</th></tr></thead><tbody>
+{% for r in d.before.results %}{% if r.status != "NOT_APPLICABLE" %}<tr><td>{{ r.node }}</td><td><span class="mono">{{ r.check_id }}</span> {{ r.title }}</td><td>{{ r.severity }}</td><td><span class="badge text-bg-{{ r.status|status_class }}">{{ r.status }}</span></td><td class="small">{{ r.explanation }}</td></tr>{% endif %}{% endfor %}</tbody></table>
+
+<h2>3. Выполненные изменения</h2>
+{% for p in d.changes %}<h3>План {{ p.plan_id|slice:":8" }} · {{ p.state }} · риск {{ p.risk }}</h3>
+<p class="small">Утвердил {{ p.approved_by|default:"—" }} {{ p.approved_at|isodt }}{% if p.finished_at %}, завершён {{ p.finished_at|isodt }}{% endif %}.</p>
+<table class="table table-sm"><thead><tr><th>Узел</th><th>Шаг</th><th>Исправляет</th><th>Откат</th><th>Итог</th></tr></thead><tbody>
+{% for i in p.items %}<tr><td>{{ i.node }}</td><td>{{ i.description }}<div class="mono">{{ i.action }}</div></td><td class="mono">{{ i.checks|join:", " }}</td><td class="small">{% if i.reversible %}автоматический{% else %}необратимо{% endif %}</td>
+  <td><span class="badge text-bg-{{ i.state|status_class }}">{{ i.state }}</span><div class="small">{{ i.result }}{% if i.after_rollback %}; {{ i.after_rollback }}{% endif %}</div></td></tr>{% endfor %}</tbody></table>
+{% empty %}<p>Между аудитами «до» и «после» утверждённых планов изменений не было.</p>{% endfor %}
+
+<h2>4. Итоговое состояние: до / после</h2>
+<p>Аудит {{ d.after.at|isodt }}: {% for k, v in after_totals.items %}<span class="badge text-bg-{{ k|status_class }}">{{ k }} {{ v }}</span> {% endfor %}. Изменилось проверок: <b>{{ changed|length }}</b>.</p>
+<table class="table table-sm"><thead><tr><th>Узел</th><th>Проверка</th><th>До</th><th>После</th></tr></thead><tbody>
+{% for c in d.comparison %}<tr {% if c.changed %}class="table-active"{% endif %}><td>{{ c.node }}</td><td><span class="mono">{{ c.check_id }}</span> {{ c.title }}</td>
+  <td>{% if c.before %}<span class="badge text-bg-{{ c.before|status_class }}">{{ c.before }}</span>{% else %}—{% endif %}</td><td><span class="badge text-bg-{{ c.after|status_class }}">{{ c.after }}</span></td></tr>{% endfor %}</tbody></table>
+
+<h2>5. Доказательства</h2>
+<h3>Наблюдаемые значения по изменившимся проверкам</h3>
+<table class="table table-sm"><thead><tr><th>Узел · проверка</th><th>Ожидалось</th><th>Наблюдалось («после»)</th><th>Объяснение</th></tr></thead><tbody>
+{% for c in changed %}<tr><td>{{ c.node }} · <span class="mono">{{ c.check_id }}</span></td><td class="mono">{{ c.expected|default:"—" }}</td><td class="mono">{{ c.observed|default:"—" }}</td><td class="small">{{ c.explanation }}</td></tr>
+{% empty %}<tr><td colspan="4" class="text-muted">Изменений результатов нет.</td></tr>{% endfor %}</tbody></table>
+{% for p in d.changes %}{% for i in p.items %}{% if i.probes %}<h3>Пробы соединений: {{ i.node }} — {{ i.action }}</h3>
+<table class="table table-sm"><thead><tr><th>Этап</th><th>Поток</th><th>Источник → назначение</th><th>Результат</th><th>Вывод</th></tr></thead><tbody>
+{% for t in i.probes %}<tr><td class="small">{% if t.phase == "BASELINE" %}до изменения{% elif t.phase == "POST" %}после изменения{% else %}после отката{% endif %}</td><td>{{ t.flow }} ({% if t.action == "ALLOW" %}разрешён{% else %}запрещён{% endif %})</td><td class="mono">{{ t.target }}</td><td class="mono">{{ t.result }}</td><td class="small">{{ t.verdict }} — {{ t.note }}</td></tr>{% endfor %}</tbody></table>{% endif %}{% endfor %}{% endfor %}
+{% if d.evidence.connectivity %}<h3>Последняя проверка соединений ({{ d.evidence.connectivity.at|isodt }})</h3>
+<table class="table table-sm"><thead><tr><th>Поток</th><th>Источник → назначение</th><th>Результат</th><th>Вывод</th></tr></thead><tbody>
+{% for t in d.evidence.connectivity.rows %}<tr><td>{{ t.flow }} ({% if t.action == "ALLOW" %}разрешён{% else %}запрещён{% endif %})</td><td class="mono">{{ t.target }}</td><td class="mono">{{ t.result }}</td><td class="small">{{ t.verdict }} — {{ t.note }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+{% if d.evidence.protection %}<h3>Проверка защиты (имитация атак)</h3>
+<table class="table table-sm"><thead><tr><th>Сценарий</th><th>Уровень защиты</th><th>Наблюдалось</th><th>Итог</th></tr></thead><tbody>
+{% for p in d.evidence.protection %}{% for l in p.layers %}<tr>{% if forloop.first %}<td rowspan="{{ p.layers|length }}">{{ p.scenario }}<div class="small">{{ p.at|isodt }} · {{ p.verdict_label }}</div></td>{% endif %}
+  <td>{{ l.layer }}</td><td class="small">{{ l.observed }}</td><td>{% if l.ok %}сработал{% elif l.ok == False %}не сработал{% else %}нет данных{% endif %}</td></tr>{% endfor %}{% endfor %}</tbody></table>{% endif %}
+<h3>События датчика вторжений с {{ d.evidence.ids.since|isodt }}</h3>
+{% if d.evidence.ids.alerts %}<table class="table table-sm"><thead><tr><th>sid</th><th>Правило</th><th>Событий</th><th>Последнее</th></tr></thead><tbody>
+{% for s in d.evidence.ids.by_signature %}<tr><td class="mono">{{ s.sid }}</td><td>{{ s.signature }}</td><td>{{ s.count }}</td><td class="small">{{ s.last|isodt }}</td></tr>{% endfor %}</tbody></table>
+{% else %}<p class="text-muted">Сохранённых событий нет (или события не запрашивались).</p>{% endif %}
+
+<h2>6. Остаточные риски</h2>
+{% if d.residual %}<table class="table table-sm"><thead><tr><th>Узел</th><th>Проверка</th><th>Важность</th><th>Статус</th><th>Почему не исправлено / что сделать</th></tr></thead><tbody>
+{% for r in d.residual %}<tr><td>{{ r.node }}</td><td><span class="mono">{{ r.check_id }}</span> {{ r.title }}</td><td>{{ r.severity }}</td><td><span class="badge text-bg-{{ r.status|status_class }}">{{ r.status }}</span></td><td class="small">{{ r.why_not_fixed|default:r.explanation }}</td></tr>{% endfor %}</tbody></table>
+{% else %}<p>По результатам аудита «после» несоответствий каталогу проверок нет.</p>{% endif %}
+
+<h2>7. Ограничения выводов</h2>
+<ul class="small">{% for l in d.limitations %}<li>{{ l }}</li>{% endfor %}</ul>
+<p class="small text-muted">Отчёт не является заключением об отсутствии уязвимостей; он фиксирует проверенные факты. Отсутствует индикатор «сеть защищена».</p>

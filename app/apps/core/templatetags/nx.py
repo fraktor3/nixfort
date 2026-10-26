@@ -66,3 +66,19 @@ def split(value: str) -> list[str]:
 @register.filter
 def get_item(mapping, key):
     return mapping.get(key) if isinstance(mapping, dict) else None
+
+
+@register.filter
+def isodt(value) -> str:
+    """ISO-8601 string from a stored JSON document -> local «dd.mm.YYYY HH:MM:SS»."""
+    from datetime import datetime
+
+    from django.utils import timezone
+
+    try:
+        dt = datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value or "—")
+    if dt.tzinfo is not None:
+        dt = timezone.localtime(dt)
+    return dt.strftime("%d.%m.%Y %H:%M:%S")
