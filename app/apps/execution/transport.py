@@ -72,6 +72,10 @@ class SSHTransport:
             raise TransportError("ssh_error") from exc
         except TimeoutError as exc:
             raise TransportError("timeout") from exc
+        except paramiko.ssh_exception.NoValidConnectionsError as exc:
+            # S-007: Paramiko wraps per-address socket errors; «refused» must not look like «no route»
+            refused = exc.errors and all(isinstance(e, ConnectionRefusedError) for e in exc.errors.values())
+            raise TransportError("connection_refused" if refused else "unreachable") from exc
         except ConnectionRefusedError as exc:
             raise TransportError("connection_refused") from exc
         except OSError as exc:

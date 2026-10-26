@@ -1,5 +1,4 @@
 import json
-import os
 import socket
 import tempfile
 import unittest
@@ -153,21 +152,6 @@ class NetProbeTests(unittest.TestCase):
         self.assertEqual(r["result"]["results"][0]["result"], "CLOSED")
 
 
-def _netns_ok() -> bool:
-    """Root alone is not enough: inside a container without CAP_SYS_ADMIN `unshare -n` is refused (S-006)."""
-    import subprocess
-
-    if os.geteuid() != 0 or not os.path.exists("/usr/sbin/nft"):
-        return False
-    try:
-        # exactly what the test needs: a new netns AND nft working inside it (CAP_NET_ADMIN)
-        probe = ["unshare", "-n", "/usr/sbin/nft", "list", "ruleset"]
-        return subprocess.run(probe, capture_output=True, timeout=10).returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-
-
-@unittest.skipUnless(_netns_ok(), "needs root, nft and permission to create network namespaces")
 class SshLoginAttemptsTests(unittest.TestCase):
     def test_outcomes_and_fixed_argv(self):
         replies = iter(
@@ -195,36 +179,7 @@ class SshLoginAttemptsTests(unittest.TestCase):
             self.assertEqual(call(request("net.ssh_login_attempts.v1", bad), FakeRunner())["state"], "REJECTED")
 
 
-class NftRealTests(unittest.TestCase):
-    """Runs the real nft binary inside a fresh network namespace."""
-
-    def test_inspect_in_netns(self):
-        import subprocess
-        import sys
-
-        code = (
-            "import json,sys; sys.path.insert(0,'.');"
-            "from nixfort_agent.__main__ import handle;"
-            "from tests.helpers import request, make_ctx;"
-            "from nixfort_agent import runner;"
-            "from unittest import mock;"
-            "mock.patch('nixfort_agent.actions.nft.ufw_active', return_value=False).start();"
-            "mock.patch('nixfort_agent.actions.nft.unit_state', return_value='absent').start();"
-            "print(handle(request('nft.inspect.v1'), ctx_factory=lambda d: make_ctx(runner=runner.run)).decode())"
-        )
-        agent_dir = str(Path(__file__).resolve().parent.parent)
-        out = subprocess.run(
-            ["unshare", "-n", sys.executable, "-c", code],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=True,
-            cwd=agent_dir,
-        )
-        r = json.loads(out.stdout)
-        self.assertEqual(r["state"], "OK", out)
-        self.assertFalse(r["result"]["nixfort_table_present"])
-        self.assertRegex(r["result"]["nft_version"], r"\d+\.\d+\.\d+")
+# The real-kernel nft check lives in tests/test_nft_real.py.
 
 
 if __name__ == "__main__":
