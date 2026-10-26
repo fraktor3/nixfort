@@ -29,6 +29,8 @@ KNOWN_ACTIONS: dict[str, bool] = {  # name -> mutating
     "net.tcp_probe.v1": False,
     "net.send_ids_test.v1": False,
     "net.ssh_login_attempts.v1": False,
+    "net.load_test.v1": False,
+    "net.capture.v1": False,
     "mutation.snapshot_status.v1": False,
     # mutating (only the remediation orchestrator, queue "mutation", may call these)
     "pkg.install_security_tool.v1": True,

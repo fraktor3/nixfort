@@ -43,6 +43,8 @@ _DEBIAN_BINS = {
     "suricata": ("/usr/bin/suricata",),
     "ufw": ("/usr/sbin/ufw",),
     "ssh_client": ("/usr/bin/ssh",),
+    "tcpdump": ("/usr/bin/tcpdump", "/usr/sbin/tcpdump"),
+    "timeout": ("/usr/bin/timeout",),
 }
 
 _DEBIAN_PATHS = {

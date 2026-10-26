@@ -12,6 +12,7 @@
     <a class="btn btn-outline-secondary" href="{% url 'remediation:plan_list' project.id %}">Исправления</a>
     <a class="btn btn-outline-secondary" href="{% url 'policy:connectivity' project.id %}">Сетевые тесты</a>
     <a class="btn btn-outline-secondary" href="{% url 'ids:sensor' project.id %}">IDS</a>
+    <a class="btn btn-outline-secondary" href="{% url 'pcap:list' project.id %}">Анализ трафика</a>
     <a class="btn btn-outline-secondary" href="{% url 'ids:protection' project.id %}">Проверка защиты</a>
     <a class="btn btn-outline-secondary" href="{% url 'reports:list' project.id %}">Отчёты</a>
     <a class="btn btn-outline-secondary" href="{% url 'inventory:portscan_list' project.id %}">Сканирование</a>

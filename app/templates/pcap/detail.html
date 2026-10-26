@@ -1,0 +1,41 @@
+{% extends "base.html" %}{% load nx %}
+{% block title %}Трафик — {{ project.name }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / <a href="{% url 'pcap:list' project.id %}">трафик</a></nav>
+<div class="d-flex justify-content-between align-items-start">
+  <div><h1 class="h4">{{ r.get_source_display }}: {{ r.origin }}</h1>
+  <div class="small text-muted mb-3">{{ r.created_at|date:"d.m.Y H:i:s" }} · {{ r.created_by|default:"—" }}
+    {% if r.job %}· <a href="{% url 'execution:job_detail' project.id r.job_id %}">журнал задания</a>{% endif %}
+    {% if r.sha256 %}· SHA-256 <span class="mono">{{ r.sha256|slice:":16" }}…</span>{% endif %}</div></div>
+  {% if can_download and r.sha256 %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'pcap:download' project.id r.id %}">Скачать .pcap</a>{% endif %}
+</div>
+{% if r.state == "FAILED" %}<div class="alert alert-danger">{{ r.error }}</div>
+{% elif r.state != "DONE" %}<div class="alert alert-info">Обрабатывается…</div>
+{% else %}{% with d=r.analysis %}
+{% for f in d.findings %}<div class="alert alert-warning py-2"><b>{{ f.title }}.</b> {{ f.detail }}</div>{% endfor %}
+<div class="row g-3 mb-3">
+  <div class="col"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ d.packets }}</div><div class="small text-muted">пакетов</div></div></div></div>
+  <div class="col"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ d.tcp_new_connections }}</div><div class="small text-muted">новых TCP-соединений</div></div></div></div>
+  <div class="col"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ d.bytes|filesizeformat }}</div><div class="small text-muted">объём (заголовки)</div></div></div></div>
+  <div class="col"><div class="card"><div class="card-body text-center"><div class="h4 mb-0">{{ d.duration_s }} с</div><div class="small text-muted">длительность</div></div></div></div>
+</div>
+{% if tl.packets %}<div class="card mb-3"><div class="card-body">{{ tl.packets|safe }}</div></div>
+<div class="card mb-3"><div class="card-body">{{ tl.bytes|safe }}</div></div>{% endif %}
+<div class="row g-3">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Протоколы</div>
+    <table class="table table-sm mb-0"><thead><tr><th>Протокол</th><th class="text-end">Пакетов</th><th class="text-end">Байт</th></tr></thead><tbody>
+    {% for p in d.protocols %}<tr><td>{{ p.protocol }}</td><td class="text-end">{{ p.frames }}</td><td class="text-end">{{ p.bytes }}</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Активные порты (службы)</div>
+    <table class="table table-sm mb-0"><thead><tr><th>Порт</th><th class="text-end">Пакетов</th></tr></thead><tbody>
+    {% for p in d.ports %}<tr><td class="mono">{{ p.proto }}/{{ p.port }}</td><td class="text-end">{{ p.frames }}</td></tr>
+    {% empty %}<tr><td colspan="2" class="text-muted small">—</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Активные адреса</div>
+    <table class="table table-sm mb-0"><thead><tr><th>Адрес</th><th class="text-end">Пакетов</th><th class="text-end">Байт</th></tr></thead><tbody>
+    {% for t in d.top_sources %}<tr><td class="mono">{{ t.ip }}{% if not t.is_private %} <span class="badge text-bg-light">внешний</span>{% endif %}</td><td class="text-end">{{ t.frames }}</td><td class="text-end">{{ t.bytes }}</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-6"><div class="card h-100"><div class="card-header">Соединения</div>
+    <table class="table table-sm mb-0"><thead><tr><th>Между адресами</th><th class="text-end">Пакетов</th><th class="text-end">Байт</th></tr></thead><tbody>
+    {% for c in d.conversations %}<tr><td class="mono small">{{ c.a }} ↔ {{ c.b }}</td><td class="text-end">{{ c.frames }}</td><td class="text-end">{{ c.bytes }}</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+<p class="small text-muted mt-3">Запись содержит только заголовки пакетов — содержимое соединений не сохраняется. Признаки атак определяются по характеру трафика (новые соединения, обращения к портам) и требуют проверки.</p>
+{% endwith %}{% endif %}
+{% endblock %}

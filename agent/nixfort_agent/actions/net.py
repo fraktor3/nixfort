@@ -105,3 +105,75 @@ def ssh_login_attempts(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         results.append({"attempt": i, "result": outcome, "latency_ms": int((time.monotonic() - t0) * 1000)})
     summary = {k: sum(1 for r in results if r["result"] == k) for k in ("REJECTED", "CLOSED", "TIMEOUT", "ERROR")}
     return {"attempts": results, "summary": summary}
+
+
+# ------------------------------------------------------------------ resilience under load (test_client)
+import concurrent.futures  # noqa: E402
+import threading  # noqa: E402
+
+
+@action(
+    "net.load_test.v1",
+    Obj(
+        {
+            "ip": IPv4(),
+            "port": Int(1, 65535),
+            "connections": Int(10, 500),
+            "concurrency": Int(1, 50),
+            "duration_s": Int(1, 20),
+        }
+    ),
+)
+def load_test(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+    """Bounded resilience check from this node: open up to `connections` short-lived TCP connections to one
+    target (at most `concurrency` at once, for at most `duration_s`), and measure how the service responds —
+    how many connections succeed, are refused or time out, and the latency. This is a responsiveness probe
+    for the lab, not a denial-of-service tool: it is hard-capped on every axis and targets one chosen service.
+    """
+    ip, port = params["ip"], params["port"]
+    total = params["connections"]
+    t_start = time.monotonic()
+    deadline = t_start + min(params["duration_s"], max(1.0, ctx.remaining() - 2))
+    counts = {"succeeded": 0, "refused": 0, "timed_out": 0, "unreachable": 0, "error": 0}
+    latencies: list[float] = []
+    lock = threading.Lock()
+    started = 0
+
+    def one() -> None:
+        t0 = time.monotonic()
+        outcome = "error"
+        try:
+            with socket.create_connection((ip, port), timeout=2):
+                outcome = "succeeded"
+        except ConnectionRefusedError:
+            outcome = "refused"
+        except TimeoutError:
+            outcome = "timed_out"
+        except OSError as exc:
+            outcome = "unreachable" if exc.errno in _UNREACH else "error"
+        dt = (time.monotonic() - t0) * 1000
+        with lock:
+            counts[outcome] += 1
+            if outcome == "succeeded":
+                latencies.append(dt)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=params["concurrency"]) as pool:
+        futures = []
+        while started < total and time.monotonic() < deadline:
+            futures.append(pool.submit(one))
+            started += 1
+        for f in concurrent.futures.as_completed(futures):
+            f.result()
+
+    elapsed = max(0.001, time.monotonic() - t_start)
+    done = sum(counts.values())
+    lat_sorted = sorted(latencies)
+    return {
+        "target": f"{ip}:{port}",
+        "attempted": done,
+        **counts,
+        "service_available": counts["succeeded"] > 0,
+        "avg_latency_ms": round(sum(latencies) / len(latencies), 1) if latencies else None,
+        "p95_latency_ms": round(lat_sorted[int(len(lat_sorted) * 0.95) - 1], 1) if lat_sorted else None,
+        "rate_per_s": round(done / elapsed, 1),
+    }

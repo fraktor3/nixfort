@@ -17,6 +17,7 @@ class JobType(models.TextChoices):
     IDS_FETCH = "IDS_FETCH", "События IDS"
     IDS_TEST = "IDS_TEST", "Тестовое событие IDS"
     PROTECTION_TEST = "PROTECTION_TEST", "Проверка защиты"
+    CAPTURE = "CAPTURE", "Захват трафика"
     PCAP_ANALYZE = "PCAP_ANALYZE", "Анализ PCAP"
     REPORT = "REPORT", "Отчёт"
 

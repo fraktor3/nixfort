@@ -179,7 +179,81 @@ class SshLoginAttemptsTests(unittest.TestCase):
             self.assertEqual(call(request("net.ssh_login_attempts.v1", bad), FakeRunner())["state"], "REJECTED")
 
 
+class CaptureTests(unittest.TestCase):
+    def test_params_are_fixed_profiles_only(self):
+        for bad in (
+            {"interface": "lo", "duration_s": 5, "max_packets": 100, "profile": "tcp port 22 or (1=1)"},
+            {"interface": "lo; reboot", "duration_s": 5, "max_packets": 100, "profile": "all"},
+            {"interface": "lo", "duration_s": 600, "max_packets": 100, "profile": "all"},
+            {"interface": "lo", "duration_s": 5, "max_packets": 10**6, "profile": "all"},
+        ):
+            self.assertEqual(call(request("net.capture.v1", bad), FakeRunner())["state"], "REJECTED", bad)
+
+    def test_unknown_interface(self):
+        r = call(
+            request("net.capture.v1", {"interface": "eth9", "duration_s": 5, "max_packets": 100, "profile": "all"}),
+            FakeRunner(),
+        )
+        self.assertEqual((r["state"], r["error_code"]), ("REJECTED", "invalid_params"))
+
+    def test_tcpdump_summary(self):
+        from nixfort_agent.actions.capture import _stats
+
+        err = "tcpdump: listening on enp0s9\n46 packets captured\n46 packets received by filter\n0 packets dropped by kernel\n"
+        self.assertEqual(_stats(err), {"captured": 46, "dropped": 0})
+
+
 # The real-kernel nft check lives in tests/test_nft_real.py.
+
+
+class LoadTestTests(unittest.TestCase):
+    def test_params_strict(self):
+        base = {"ip": "10.99.0.10", "port": 80, "connections": 80, "concurrency": 20, "duration_s": 5}
+        for bad in (
+            {**base, "ip": "10.99.0.10; rm"},
+            {**base, "connections": 5},  # below min
+            {**base, "connections": 9999},  # above max
+            {**base, "concurrency": 99},
+            {**base, "duration_s": 99},
+        ):
+            self.assertEqual(call(request("net.load_test.v1", bad), FakeRunner())["state"], "REJECTED", bad)
+
+    def test_bounded_run_against_real_socket(self):
+        import socket as _s
+        import threading as _t
+
+        srv = _s.socket()
+        srv.setsockopt(_s.SOL_SOCKET, _s.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", 0))
+        port = srv.getsockname()[1]
+        srv.listen(64)
+        stop = _t.Event()
+
+        def acc():
+            while not stop.is_set():
+                try:
+                    c, _ = srv.accept()
+                    c.close()
+                except OSError:
+                    break
+
+        _t.Thread(target=acc, daemon=True).start()
+        from nixfort_agent import runner
+
+        r = call(
+            request(
+                "net.load_test.v1",
+                {"ip": "127.0.0.1", "port": port, "connections": 60, "concurrency": 10, "duration_s": 5},
+            ),
+            runner.run,
+        )
+        stop.set()
+        srv.close()
+        res = r["result"]
+        self.assertEqual(r["state"], "OK")
+        self.assertTrue(res["service_available"] and res["succeeded"] > 0)
+        self.assertEqual(res["refused"], 0)
+        self.assertLessEqual(res["attempted"], 60)
 
 
 if __name__ == "__main__":

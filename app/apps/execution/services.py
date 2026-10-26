@@ -31,6 +31,7 @@ JOB_TIMEOUTS: dict[str, int] = {
     JobType.IDS_FETCH: 120,
     JobType.IDS_TEST: 120,
     JobType.PROTECTION_TEST: 300,
+    JobType.CAPTURE: 120,
     JobType.PCAP_ANALYZE: 300,
     JobType.REPORT: 300,
 }

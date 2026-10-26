@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% load nx %}
+{% block title %}Анализатор трафика — {{ project.name }}{% endblock %}
+{% block content %}
+<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / трафик</nav>
+<h1 class="h3">Анализатор трафика</h1>
+<p class="text-muted small">Короткая запись трафика на интерфейсе узла (только заголовки пакетов — содержимое не записывается) или загрузка готового файла PCAP. Разбор движком TShark (Wireshark): протоколы, кто с кем общается, активные адреса и порты, график по времени, признаки сканирования и подбора пароля.</p>
+{% if can_run %}<div class="row g-3 mb-4">
+  <div class="col-lg-7"><div class="card h-100"><div class="card-header">Записать трафик на узле</div><div class="card-body">
+  {% if targets %}<form method="post" action="{% url 'pcap:capture' project.id %}" class="row g-2 align-items-end">{% csrf_token %}
+    <div class="col-7"><label class="form-label small">Узел и интерфейс</label><select class="form-select form-select-sm" name="target">
+      {% for t in targets %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}</select></div>
+    <div class="col-3"><label class="form-label small">Секунд</label><input class="form-control form-control-sm" name="duration_s" type="number" min="3" max="60" value="10"></div>
+    <div class="col-2"><label class="form-label small">&nbsp;</label><button class="btn btn-sm btn-primary w-100">Записать</button></div>
+    <div class="col-12 mt-2"><label class="form-label small">Профиль</label>
+      {% for v, t in profiles %}<div class="form-check form-check-inline small"><input class="form-check-input" type="radio" name="profile" value="{{ v }}" {% if forloop.first %}checked{% endif %}><label class="form-check-label">{{ t }}</label></div>{% endfor %}</div>
+  </form>
+  {% else %}<span class="text-muted small">Нет узла с ролью «Шлюз» или «Датчик IDS» с инвентаризацией. Сначала выполните инвентаризацию.</span>{% endif %}
+  </div></div></div>
+  <div class="col-lg-5"><div class="card h-100"><div class="card-header">Загрузить файл PCAP</div><div class="card-body">
+    <form method="post" action="{% url 'pcap:upload' project.id %}" enctype="multipart/form-data" class="d-flex gap-2 align-items-end">{% csrf_token %}
+      <div class="flex-grow-1"><label class="form-label small">Файл .pcap / .pcapng (до 100 МБ)</label><input class="form-control form-control-sm" type="file" name="file" accept=".pcap,.pcapng,.cap"></div>
+      <button class="btn btn-sm btn-outline-primary">Загрузить</button></form>
+    <div class="form-text">Файл проверяется по сигнатуре; на диске хранится под именем-хешем.</div>
+  </div></div></div>
+</div>{% endif %}
+<table class="table"><thead><tr><th>Когда</th><th>Источник</th><th>Пакетов</th><th>Находки</th><th>Состояние</th></tr></thead><tbody>
+{% for r in items %}<tr><td><a href="{% url 'pcap:detail' project.id r.id %}">{{ r.created_at|date:"d.m.Y H:i:s" }}</a></td>
+  <td class="small">{{ r.get_source_display }}: {{ r.origin }}</td><td>{{ r.analysis.packets|default:"—" }}</td>
+  <td>{% if r.analysis.findings %}<span class="badge text-bg-danger">{{ r.analysis.findings|length }}</span>{% else %}—{% endif %}</td>
+  <td><span class="badge text-bg-{{ r.state|status_class }}">{{ r.get_state_display }}</span></td></tr>
+{% empty %}<tr><td colspan="5" class="text-muted">Записей нет.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

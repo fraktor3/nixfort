@@ -22,6 +22,7 @@ from apps.policy.models import Flow, FlowPolicyVersion
 from .models import IdsEvent, ProtectionTest
 
 TEST_SID, SCAN_SID, BRUTE_SID = 9000001, 9000002, 9000003
+LOAD_CONNECTIONS, LOAD_CONCURRENCY, LOAD_DURATION = 120, 25, 8
 SCAN_PORTS = [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5900, 8080,
               *range(1000, 1020)]  # fmt: skip
 SENSOR_WAIT_S = 6  # EVE is flushed asynchronously
@@ -265,10 +266,111 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
     return _save(job, ProtectionTest.Scenario.SSH_BRUTEFORCE, layers, details)
 
 
+def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
+    """Controlled resilience check: a burst of short TCP connections from the client, measured two ways —
+    against an ALLOWED service (it must stay responsive) and against a DENIED port (the firewall must absorb
+    the burst before it reaches the service). Suricata should flag the burst. Bounded; this is not a DoS tool.
+    """
+    project = job.project
+    sensor = _node(project, "ids_sensor")
+    client = _node(project, "test_client", need_data_ip=True)
+    server = _node(project, "server", need_data_ip=True)
+    policy = _policy(project)
+    data_ip = server.data_ips[0]
+    allowed = [p for p in (80, 443, 8080, 3306) if _expected(policy, client, data_ip, p) == Flow.Action.ALLOW]
+    denied = [p for p in (8080, 22, 3306, 23) if _expected(policy, client, data_ip, p) == Flow.Action.DENY]
+    if not allowed:
+        raise ScenarioError("в политике нет разрешённого сервиса для проверки устойчивости")
+    layers, details = [], {}
+    since = timezone.now() - timedelta(seconds=5)
+
+    # A. load against an allowed service — it must keep answering
+    ap = allowed[0]
+    log(f"A. нагрузка на разрешённый сервис {data_ip}:{ap} — {LOAD_CONNECTIONS} коротких соединений", "INFO")
+    a = _call(
+        client_factory,
+        client,
+        "net.load_test.v1",
+        {
+            "ip": data_ip,
+            "port": ap,
+            "connections": LOAD_CONNECTIONS,
+            "concurrency": LOAD_CONCURRENCY,
+            "duration_s": LOAD_DURATION,
+        },
+        deadline_s=LOAD_DURATION + 30,
+    )
+    if not a.ok:
+        raise ScenarioError(f"нагрузка не выполнена ({a.state} {a.error_code})")
+    ra = a.result
+    details["allowed"] = {
+        k: ra.get(k) for k in ("attempted", "succeeded", "refused", "timed_out", "avg_latency_ms", "rate_per_s")
+    }
+    layers.append({
+        "layer": "Доступность сервиса",
+        "expected": f"разрешённый сервис {data_ip}:{ap} остаётся доступен под нагрузкой",
+        "observed": f"успешных соединений {ra.get('succeeded')} из {ra.get('attempted')} "
+                    f"(темп {ra.get('rate_per_s')}/с, средняя задержка {ra.get('avg_latency_ms')} мс)",
+        "ok": bool(ra.get("service_available")),
+    })  # fmt: skip
+
+    # B. load against a denied port — the firewall must absorb it before the service
+    if denied:
+        dp = denied[0]
+        log(f"B. нагрузка на запрещённый порт {data_ip}:{dp} — межсетевой экран должен поглотить её", "INFO")
+        b = _call(
+            client_factory,
+            client,
+            "net.load_test.v1",
+            {
+                "ip": data_ip,
+                "port": dp,
+                "connections": LOAD_CONNECTIONS,
+                "concurrency": LOAD_CONCURRENCY,
+                "duration_s": LOAD_DURATION,
+            },
+            deadline_s=LOAD_DURATION + 30,
+        )
+        rb = b.result if b.ok else {}
+        details["denied"] = {k: rb.get(k) for k in ("attempted", "succeeded", "timed_out", "refused")}
+        layers.append({
+            "layer": "Межсетевой экран (шлюз)",
+            "expected": f"нагрузка на запрещённый порт {dp} не доходит до сервиса",
+            "observed": f"успешных соединений {rb.get('succeeded', 0)} из {rb.get('attempted', 0)}; "
+                        f"не установлено: {(rb.get('timed_out', 0) or 0) + (rb.get('refused', 0) or 0)}",
+            "ok": b.ok and rb.get("succeeded", 1) == 0,
+        })  # fmt: skip
+
+    # service still responsive right after the load
+    sleep(2)
+    chk = _call(
+        client_factory, client, "net.tcp_probe.v1", {"targets": [{"ip": data_ip, "port": ap}], "timeout_ms": 1500}
+    )
+    after_open = chk.ok and (chk.result.get("results") or [{}])[0].get("result") == "OPEN"
+    layers.append({
+        "layer": "Сервис после нагрузки",
+        "expected": "сервис отвечает после снятия нагрузки",
+        "observed": "сервис доступен" if after_open else "сервис не ответил",
+        "ok": after_open,
+    })  # fmt: skip
+
+    # Suricata should have flagged the burst (many new connections from one source)
+    sleep(SENSOR_WAIT_S)
+    available, reason, events = fetch_events(project, sensor, job, since, client_factory)
+    hits = _alerts(events, SCAN_SID, client.data_ips)
+    layers.append(
+        _ids_layer(
+            available, reason, hits, f"событие о всплеске соединений (sid {SCAN_SID}) от {', '.join(client.data_ips)}"
+        )
+    )
+    return _save(job, ProtectionTest.Scenario.LOAD, layers, details)
+
+
 SCENARIOS: dict[str, Callable] = {
     ProtectionTest.Scenario.IDS_MARKER: ids_marker,
     ProtectionTest.Scenario.PORT_SCAN: port_scan,
     ProtectionTest.Scenario.SSH_BRUTEFORCE: ssh_bruteforce,
+    ProtectionTest.Scenario.LOAD: load_resilience,
 }
 
 

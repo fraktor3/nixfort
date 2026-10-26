@@ -5,5 +5,5 @@ request from stdin, executes one allowlisted action, writes one JSON response
 to stdout. Standard library only (portability to Astra Linux / Debian).
 """
 
-AGENT_VERSION = "1.3.1"
+AGENT_VERSION = "1.5.0"
 PROTOCOL = "nixfort.agent/1"

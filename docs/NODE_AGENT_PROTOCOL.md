@@ -89,6 +89,8 @@
 | `net.tcp_probe.v1` | R | `targets: list[{ip: IPv4, port: int}] ≤50`, `timeout_ms: 200..5000` | results[{ip, port, result: OPEN\|CLOSED\|TIMEOUT\|UNREACHABLE, latency_ms}] (сокеты Python, без внешних программ) |
 | `net.send_ids_test.v1` | R* | `ip: IPv4`, `port: int` | `{sent: bool}` — TCP-соединение и отправка фиксированной строки `NIXFORT-IDS-TEST-7f3a` (для тестового правила Suricata) |
 | `net.ssh_login_attempts.v1` | R* | `ip: IPv4`, `port`, `count: 1..10` | attempts[{attempt, result: REJECTED\|CLOSED\|TIMEOUT\|ERROR, latency_ms}], summary — вход `ssh -o BatchMode=yes` под несуществующими `nixfort-test-N`, пароль не передаётся; для проверки Fail2ban и правила IDS |
+| `net.capture.v1` | R* | `interface: ^[a-z][a-z0-9]{0,14}$`, `duration_s: 3..60`, `max_packets: 10..5000`, `profile: enum{all, ip, no_ssh}` | `{interface, profile, duration_s, snaplen:96, size, truncated, captured, dropped_by_kernel, pcap_b64}` — короткий `tcpdump` на интерфейсе; **только заголовки** (snaplen 96 — содержимое пакетов не захватывается), фиксированные BPF-профили (выражения из запроса не принимаются), файл не покидает `/var/lib/nixfort/tmp` иначе как этим ответом (≤700 КБ base64) |
+| `net.load_test.v1` | R* | `ip: IPv4`, `port`, `connections: 10..500`, `concurrency: 1..50`, `duration_s: 1..20` | `{target, attempted, succeeded, refused, timed_out, unreachable, error, service_available, avg_latency_ms, p95_latency_ms, rate_per_s}` — короткие TCP-соединения к одному сервису для проверки устойчивости; ограничено по числу (≤500), параллельности (≤50) и времени (≤20 с); это проба отзывчивости, не средство отказа в обслуживании |
 | `mutation.commit.v1` | M | `snapshot_id: ^[0-9a-f]{32}$` | `{timer_cancelled: bool}` |
 | `mutation.rollback_now.v1` | M | `snapshot_id` | `{rolled_back: bool, service_reloaded: bool}` |
 | `mutation.snapshot_status.v1` | R | `snapshot_id` | `{exists, kind, timer_active, rolled_back, committed}` |
@@ -128,8 +130,8 @@ table inet nixfort {
 
 Проверено на настоящем ядре (`agent/tests/test_nft_real.py`): три сетевых пространства клиент → шлюз → сервер; до правил 80/8080/22 OPEN, после — 80 OPEN, 8080/22 TIMEOUT; повторное применение не дублирует таблицу; удаление таблицы возвращает исходное состояние.
 
-## 8. Реализация (агент 1.3.0)
-Реализованы (агент 1.3.0): все read-действия, `nft.apply_policy.v1`, `suricata.apply_sensor_profile.v1`, `net.ssh_login_attempts.v1`, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`.
+## 8. Реализация (агент 1.5.0)
+Реализованы (агент 1.5.0): все read-действия, `nft.apply_policy.v1`, `suricata.apply_sensor_profile.v1`, `net.ssh_login_attempts.v1`, `net.capture.v1`, `net.load_test.v1`, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`.
 Все действия протокола реализованы.
 
 ### Профиль датчика Suricata

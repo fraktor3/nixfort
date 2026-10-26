@@ -81,6 +81,27 @@ class Lab:
                         if len(res) >= 20 and lab.sensor == "ok":
                             lab._event(9000002, src_data, p["targets"][0]["ip"], p["targets"][0]["port"])
                         return ok({"results": res})
+                    if action == "net.load_test.v1":
+                        reachable = lab.reach(src_data, p["ip"], p["port"]) == "OPEN"
+                        n = p["connections"]
+                        ok_n = n if reachable else 0
+                        if lab.sensor == "ok":  # a burst of new connections trips the "many SYN" rule
+                            lab._event(9000002, src_data, p["ip"], p["port"])
+                        return ok(
+                            {
+                                "target": f"{p['ip']}:{p['port']}",
+                                "attempted": n,
+                                "succeeded": ok_n,
+                                "refused": 0 if reachable else n,
+                                "timed_out": 0,
+                                "unreachable": 0,
+                                "error": 0,
+                                "service_available": reachable,
+                                "avg_latency_ms": 2.0 if reachable else None,
+                                "p95_latency_ms": 3.0 if reachable else None,
+                                "rate_per_s": 100.0,
+                            }
+                        )
                     if action == "net.ssh_login_attempts.v1":
                         src = src_mgmt if p["ip"].startswith("10.77.") else src_data
                         out = []
@@ -276,3 +297,21 @@ def test_activation_failed_on_node_is_failed_not_unknown(client_as, admin, opera
     item = plan.items.get()
     assert item.state == ItemState.FAILED and "восстановил прежнюю" in item.result["reason"]
     assert plan.state == PlanState.FAILED
+
+
+def test_load_resilience(client_as, admin, project, policy, monkeypatch):
+    lab = Lab()  # 80 allowed, 8080/22 denied
+    run_job(client_as, admin, reverse("ids:protection_run", args=[project.id, "LOAD"]), lab, monkeypatch)
+    t = ProtectionTest.objects.filter(scenario="LOAD").latest("created_at")
+    kinds = [lay["layer"] for lay in t.layers]
+    assert "Доступность сервиса" in kinds and "Межсетевой экран (шлюз)" in kinds and "Suricata (шлюз)" in kinds
+    avail = next(x for x in t.layers if x["layer"] == "Доступность сервиса")
+    fw = next(x for x in t.layers if x["layer"] == "Межсетевой экран (шлюз)")
+    assert avail["ok"] is True and fw["ok"] is True
+    assert t.verdict == "PROTECTED", t.layers
+
+
+def test_load_requires_admin(client_as, operator, project, policy):
+    r = client_as(operator).post(reverse("ids:protection_run", args=[project.id, "LOAD"]))
+    assert r.status_code == 403
+    assert not Job.objects.filter(type=JobType.PROTECTION_TEST).exists()

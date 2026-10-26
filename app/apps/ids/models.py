@@ -41,6 +41,7 @@ class ProtectionTest(BaseModel):
         IDS_MARKER = "IDS_MARKER", "Тестовое событие IDS"
         PORT_SCAN = "PORT_SCAN", "Сканирование портов"
         SSH_BRUTEFORCE = "SSH_BRUTEFORCE", "Подбор пароля SSH"
+        LOAD = "LOAD", "Проверка устойчивости под нагрузкой"
 
     class Verdict(models.TextChoices):
         PROTECTED = "PROTECTED", "Защита сработала"
