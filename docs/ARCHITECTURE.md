@@ -46,7 +46,8 @@ nixfort/
 │       ├── checks/               # каталог проверок, движок, AuditRun, CheckResult, Evidence
 │       ├── remediation/          # RemediationPlan/Item, планировщик, оркестратор
 │       ├── ids/                  # события Suricata
-│       ├── pcap/                 # загрузка и анализ PCAP
+│       ├── pcap/                 # запись и анализ трафика (TShark)
+│       ├── seclog/               # сводка журналов безопасности (входы SSH, баны, IDS)
 │       └── reports/              # HTML/PDF/JSON отчёты
 ├── agent/                        # узловой агент, ТОЛЬКО стандартная библиотека Python 3
 │   ├── nixfort_agent/

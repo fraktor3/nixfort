@@ -152,15 +152,16 @@ def _reapply_nft(ctx: Context, snap) -> dict[str, Any]:
 mutation.REAPPLY["nft"] = _reapply_nft
 
 
-def _preconditions(ctx: Context) -> None:
+def _preconditions(ctx: Context, require_forward: bool = True) -> None:
     if not os.access(ctx.profile.bin("nft"), os.X_OK):
         raise Rejected("tool_missing", "nftables is not installed")
-    try:
-        forward = ctx.read_file(ctx.profile.paths["ip_forward"]).strip()
-    except OSError:
-        forward = ""
-    if forward != "1":
-        raise Rejected("conflict", "net.ipv4.ip_forward is not 1 - node is not a gateway")
+    if require_forward:
+        try:
+            forward = ctx.read_file(ctx.profile.paths["ip_forward"]).strip()
+        except OSError:
+            forward = ""
+        if forward != "1":
+            raise Rejected("conflict", "net.ipv4.ip_forward is not 1 - node is not a gateway")
     if ufw_active(ctx):
         raise Rejected("conflict", "ufw is active")
     if unit_state(ctx, "firewalld") == "active":
@@ -219,5 +220,83 @@ def apply_policy(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
     )
     text = own_table_text(ctx)
     result["rules_sha256"] = rules_sha256(params)
+    result["ruleset_sha256"] = hashlib.sha256(text.encode()).hexdigest() if text else None
+    return result
+
+
+# ------------------------------------------------------------------ host firewall (server, input only)
+def host_rules_sha256(p: dict[str, Any]) -> str:
+    canon = {k: p[k] for k in ("version", "management_sources", "allow_ports")}
+    return hashlib.sha256(json.dumps(canon, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def render_host_firewall(p: dict[str, Any]) -> str:
+    """Server host firewall: input chain, default drop, SSH only from management, plus the declared service
+    ports. No forward chain (a server is not a router). Lines 1-2 make the replacement atomic/idempotent."""
+    mgmt = ", ".join(p["management_sources"])
+    lines = [
+        HEADER.rstrip("\n"),
+        f"table inet {OWN_TABLE} {{}}",
+        f"delete table inet {OWN_TABLE}",
+        f"table inet {OWN_TABLE} {{",
+        f'\tcomment "nixfort hostfw version={int(p["version"])} rules_sha256={host_rules_sha256(p)}"',
+        "\tchain input {",
+        "\t\ttype filter hook input priority filter; policy drop;",
+        '\t\tiif "lo" accept',
+        "\t\tct state established,related accept",
+        "\t\tct state invalid drop",
+        "\t\tmeta l4proto { icmp, ipv6-icmp } accept",
+        f"\t\tip saddr {{ {mgmt} }} tcp dport 22 accept",
+    ]
+    if p["allow_ports"]:
+        ports = ", ".join(str(int(x)) for x in p["allow_ports"])
+        lines.append(f"\t\ttcp dport {{ {ports} }} accept")
+    lines += ["\t}", "}", ""]
+    return "\n".join(lines)
+
+
+@action(
+    "nft.apply_host_firewall.v1",
+    Obj(
+        {
+            "version": Int(1, 1_000_000),
+            "management_sources": ListOf(IPv4(), max_len=4, min_len=1, unique=True),
+            "allow_ports": ListOf(Int(1, 65535), max_len=30, unique=True),
+            "rollback_timeout_s": Int(30, 300),
+        }
+    ),
+    mutating=True,
+)
+def apply_host_firewall(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+    _preconditions(ctx, require_forward=False)
+    owned = ctx.profile.paths["nft_owned"]
+    conf = ctx.profile.paths["nft_conf"]
+    new_conf = _conf_with_include(ctx)
+    was_enabled = _service_enabled(ctx)
+
+    def write_candidate() -> None:
+        atomic_write(owned, render_host_firewall(params).encode(), 0o600)
+        if new_conf is not None:
+            atomic_write(conf, new_conf.encode(), 0o755)
+
+    def activate() -> None:
+        _load_owned(ctx)
+        if not was_enabled:
+            res = ctx.tool("systemctl", "enable", ctx.profile.units["nftables"], timeout=30)
+            if res.returncode != 0:
+                raise AgentError("tool_failed", "systemctl enable nftables failed")
+
+    result = mutation.guarded_apply(
+        ctx,
+        kind="nft",
+        files=[owned, conf],
+        write_candidate=write_candidate,
+        validate=lambda: _validate(ctx),
+        activate=activate,
+        rollback_timeout_s=params["rollback_timeout_s"],
+        extra={"service_was_enabled": was_enabled},
+    )
+    text = own_table_text(ctx)
+    result["rules_sha256"] = host_rules_sha256(params)
     result["ruleset_sha256"] = hashlib.sha256(text.encode()).hexdigest() if text else None
     return result

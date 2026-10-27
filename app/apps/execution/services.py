@@ -34,6 +34,7 @@ JOB_TIMEOUTS: dict[str, int] = {
     JobType.CAPTURE: 120,
     JobType.PCAP_ANALYZE: 300,
     JobType.REPORT: 300,
+    JobType.SECURITY_LOGS: 300,
 }
 
 JOB_PERMS: dict[str, Perm] = {t: Perm.RUN_JOBS for t in JobType.values}

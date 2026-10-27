@@ -23,6 +23,7 @@ class FakeNode:
 
     def __init__(self, behaviour=None):
         self.f2b = None
+        self.hostfw = None
         self.ssh = {
             "permitrootlogin": "without-password",
             "passwordauthentication": "yes",
@@ -65,6 +66,28 @@ class FakeNode:
             return ok({"snapshot_id": sid})
         if action == "fail2ban.read_status.v1":
             return ok({"service": "active", "sshd": self.f2b})
+        if action == "nft.apply_host_firewall.v1":
+            sid = "h" * 32
+            self.pending[sid] = ("hostfw", self.hostfw)
+            self.hostfw = params
+            from apps.remediation.planner import host_rules_sha256
+
+            return ok({"snapshot_id": sid, "rules_sha256": host_rules_sha256(params)})
+        if action == "nft.inspect.v1":
+            from apps.remediation.planner import host_rules_sha256
+
+            hf = self.hostfw
+            return ok(
+                {
+                    "nixfort_table_present": bool(hf),
+                    "policy_meta": {"policy_version": hf["version"], "rules_sha256": host_rules_sha256(hf)}
+                    if hf
+                    else None,
+                    "nixfort_chains": {"input": {"hook": "input", "policy": "drop"}} if hf else {},
+                    "nixfort_input_ssh_sources": sorted(hf["management_sources"]) if hf else [],
+                    "nixfort_input_ports": sorted(set(hf["allow_ports"]) | {22}) if hf else [],
+                }
+            )
         if action == "ssh.apply_hardening_profile.v1":
             sid = "b" * 32
             self.pending[sid] = ("ssh", dict(self.ssh))
@@ -87,6 +110,8 @@ class FakeNode:
             kind, prev = self.pending.pop(params["snapshot_id"])
             if kind == "f2b":
                 self.f2b = prev
+            elif kind == "hostfw":
+                self.hostfw = prev
             else:
                 self.ssh = prev
             return ok({"rolled_back": True})
@@ -159,6 +184,9 @@ def _post_collect(fake_nodes):
 def only_server_plan(baseline_run, operator):
     plan = planner.create_plan(baseline_run, operator, key_only_confirmed=False)
     plan.items.exclude(node__name="nx-server").delete()
+    # the Fail2ban+SSH tests keep their original scope; host firewall has its own test below
+    plan.items.filter(action_id="nft.apply_host_firewall.v1").delete()
+    plan.items.filter(action_id="pkg.install_security_tool.v1", check_ids=["HFW-01"]).delete()
     return plan
 
 
@@ -281,3 +309,17 @@ def test_controller_knows_every_agent_action():
     assert set(KNOWN_ACTIONS) <= set(agent)
     for name, mutating in KNOWN_ACTIONS.items():
         assert agent[name].mutating == mutating, name
+
+
+def test_host_firewall_on_server(client_as, admin, operator, baseline_run, monkeypatch):
+    """HFW-01: a server gets an input-only nftables profile; verified through a new SSH session (nft.inspect)."""
+    plan = planner.create_plan(baseline_run, operator, key_only_confirmed=False)
+    keep = [i.id for i in plan.items.all() if i.action_id == "nft.apply_host_firewall.v1"]
+    plan.items.exclude(id__in=keep).delete()
+    srv = FakeNode()
+    plan, job = approve_and_run(client_as, admin, plan, {"nx-server": srv}, monkeypatch)
+    item = plan.items.get(action_id="nft.apply_host_firewall.v1")
+    assert item.state == ItemState.VERIFIED, item.result
+    assert item.params["allow_ports"] == [80] and "10.77.0.10" in item.params["management_sources"]
+    assert srv.hostfw is not None and "nft.inspect.v1" in srv.calls
+    assert plan.state == PlanState.VERIFIED

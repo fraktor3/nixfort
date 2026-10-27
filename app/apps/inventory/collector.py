@@ -35,7 +35,7 @@ def fact_keys_for(node: Node) -> list[str]:
         keys += ["listeners", "ssh"]
     if "server" in roles:
         keys.append("fail2ban")
-    if "gateway" in roles:
+    if "gateway" in roles or "server" in roles:  # server: host firewall (HFW-01)
         keys.append("nft")
     if "ids_sensor" in roles:
         keys.append("suricata")

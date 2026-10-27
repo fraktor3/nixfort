@@ -30,9 +30,9 @@ def run_all(facts, ctx):
     return {c.id: domain.evaluate(c, facts, ctx).status for c in domain.CATALOG}
 
 
-def test_catalog_has_21_unique_checks():
-    assert len(domain.CATALOG) == 21
-    assert len({c.id for c in domain.CATALOG}) == 21
+def test_catalog_has_22_unique_checks():
+    assert len(domain.CATALOG) == 22
+    assert len({c.id for c in domain.CATALOG}) == 22
     for c in domain.CATALOG:
         assert c.source_ref and c.title and c.facts
 
@@ -59,6 +59,7 @@ def test_lab_server_baseline_matches_reality():
         "F2B-01": FAIL,
         "F2B-02": FAIL,
         "F2B-03": FAIL,
+        "HFW-01": FAIL,
         "IDS-01": NA,
         "IDS-02": NA,
         "IDS-03": NA,
@@ -94,6 +95,12 @@ def hardened_server():
         "jails": ["sshd"],
         "sshd": {"enabled": True, "maxretry": 5, "bantime": 600, "findtime": 600},
     }
+    f["nft"]["result"].update(
+        nixfort_table_present=True,
+        nixfort_chains={"input": {"hook": "input", "policy": "drop"}},
+        nixfort_input_ssh_sources=["10.77.0.10"],
+        nixfort_input_ports=[22, 80],
+    )
     return f
 
 

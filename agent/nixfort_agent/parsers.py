@@ -160,7 +160,7 @@ def parse_int_value(text: str) -> int | None:
 
 # --- nft -j list ruleset -----------------------------------------------------------------
 
-_META = re.compile(r"policy_version=(\d+)\s+(?:plan_hash|rules_sha256)=([0-9a-f]{64})")
+_META = re.compile(r"(?:policy_version|version)=(\d+)\s+(?:plan_hash|rules_sha256)=([0-9a-f]{64})")
 
 
 def parse_nft_ruleset(text: str, own_table: str = "nixfort") -> dict[str, Any]:
@@ -210,9 +210,32 @@ def parse_nft_ruleset(text: str, own_table: str = "nixfort") -> dict[str, Any]:
         "nixfort_table_present": own_present,
         "nixfort_chains": {name: {"hook": c["hook"], "policy": c["policy"]} for name, c in sorted(own_chains.items())},
         "nixfort_input_ssh_sources": _ssh_sources(own_rules),
+        "nixfort_input_ports": _input_ports(own_rules),
         "policy_meta": meta,
         "conflict": {"docker": docker, "foreign_base_chains": foreign_base},
     }
+
+
+def _input_ports(rules: list[dict[str, Any]]) -> list[int]:
+    """TCP destination ports accepted in our input chain (a server host firewall opens exactly these)."""
+    ports: set[int] = set()
+    for r in rules:
+        if r["chain"] != "input":
+            continue
+        if not any(isinstance(e, dict) and "accept" in e for e in r["expr"]):
+            continue
+        for e in r["expr"]:
+            m = e.get("match") if isinstance(e, dict) else None
+            if not m:
+                continue
+            payload = (m.get("left") or {}).get("payload", {}) if isinstance(m.get("left"), dict) else {}
+            right = m.get("right")
+            if payload.get("field") == "dport":
+                if isinstance(right, int):
+                    ports.add(right)
+                elif isinstance(right, dict) and "set" in right:
+                    ports.update(x for x in right["set"] if isinstance(x, int))
+    return sorted(ports)
 
 
 def _ssh_sources(rules: list[dict[str, Any]]) -> list[str]:
@@ -322,3 +345,39 @@ def parse_eve_lines(lines: list[str], since_ts: str | None, types: set[str], lim
             }
         events.append(item)
     return events[-limit:]
+
+
+# --- sshd auth failures from journald -------------------------------------------------------
+_SSHD_FROM = re.compile(r"\bfrom (\d{1,3}(?:\.\d{1,3}){3})\b")
+_SSHD_USER = re.compile(r"(?:Invalid user (\S+)|Failed password for (?:invalid user )?(\S+))")
+_SSHD_FAIL = ("Failed password", "Invalid user", "authentication failure", "Connection closed by authenticating user")
+
+
+def parse_auth_failures(text: str, max_lines: int = 20000) -> dict[str, Any]:
+    """Count sshd authentication failures per source IP and per attempted user from journald text."""
+    by_ip: dict[str, int] = {}
+    by_user: dict[str, int] = {}
+    total = 0
+    for i, line in enumerate(text.splitlines()):
+        if i >= max_lines:
+            break
+        if not any(m in line for m in _SSHD_FAIL):
+            continue
+        total += 1
+        mi = _SSHD_FROM.search(line)
+        if mi:
+            by_ip[mi.group(1)] = by_ip.get(mi.group(1), 0) + 1
+        mu = _SSHD_USER.search(line)
+        if mu:
+            user = (mu.group(1) or mu.group(2) or "")[:32]
+            if user:
+                by_user[user] = by_user.get(user, 0) + 1
+
+    def top(d):
+        return [{"value": k, "count": v} for k, v in sorted(d.items(), key=lambda kv: -kv[1])[:20]]
+
+    return {
+        "total": total,
+        "by_source": [{"ip": x["value"], "count": x["count"]} for x in top(by_ip)],
+        "by_user": top(by_user),
+    }

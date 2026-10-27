@@ -153,7 +153,7 @@ def test_plan_contains_firewall_step_from_policy(active_policy, baseline_run, op
     assert item.check_ids == ["FW-02", "FW-03"]
     assert item.params["forward_allow"] == [{"src": "10.88.0.0/24", "dst": "10.99.0.10", "port": 80}]
     assert item.params["management_sources"] == ["10.77.0.10", "10.0.2.2"]
-    assert item.order == max(i.order for i in plan.items.all())  # firewall last (highest risk)
+    assert item.order == max(i.order for i in plan.items.filter(node=item.node))  # firewall last on its node
     assert not any(n["check_id"] in {"FW-02", "FW-03"} for n in plan.not_covered)
     # contract with the agent: schema and the hash written into the table comment
     from nixfort_agent.actions import nft as agent_nft

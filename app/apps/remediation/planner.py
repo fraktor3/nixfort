@@ -22,6 +22,7 @@ SUPPORTED_NOW = {
     "fail2ban.apply_sshd_profile.v1",
     "ssh.apply_hardening_profile.v1",
     "nft.apply_policy.v1",
+    "nft.apply_host_firewall.v1",
     "suricata.apply_sensor_profile.v1",
 }
 # Default hardening values (CHECKS_CATALOG expectations).
@@ -66,6 +67,12 @@ def nft_params(project, policy, gateway) -> dict:
         "input_allow": inbound,
         "rollback_timeout_s": settings.NIXFORT_ROLLBACK_TIMEOUT_S,
     }
+
+
+def host_rules_sha256(params: dict) -> str:
+    """Same hash the agent writes into the server host-firewall table comment (actions/nft.py)."""
+    canon = {k: params[k] for k in ("version", "management_sources", "allow_ports")}
+    return hashlib.sha256(json.dumps(canon, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def rules_sha256(params: dict) -> str:
@@ -173,6 +180,32 @@ def _ids_drafts(node, ids: set[str], packages: dict) -> tuple[list[Draft], list[
     return drafts, []
 
 
+def _hostfw_drafts(node, ids: set[str], packages: dict) -> tuple[list[Draft], list[dict]]:
+    """Server host firewall (HFW-01): install nftables if missing, then an input-only profile that opens the
+    node's declared ports and SSH from management, dropping the rest."""
+    if "HFW-01" not in ids:
+        return [], []
+    if not node.has_role("server"):
+        return [], [{"node": node.name, "check_id": "HFW-01", "reason": "Хостовый экран применяется на сервере"}]
+    drafts = []
+    if not packages.get("nftables"):
+        drafts.append(Draft(node, 0, ["HFW-01"], "pkg.install_security_tool.v1", {"package": "nftables"}, "LOW",
+                            False, "Установить nftables из репозитория дистрибутива"))  # fmt: skip
+    allow_ports = sorted({int(p) for p in (node.expected_tcp_ports or []) if int(p) != 22})
+    params = {
+        "version": 1,
+        "management_sources": node.project.management_sources,
+        "allow_ports": allow_ports,
+        "rollback_timeout_s": settings.NIXFORT_ROLLBACK_TIMEOUT_S,
+    }
+    desc = (
+        f"Хостовый межсетевой экран сервера: открыты порты {allow_ports or '—'} и SSH с "
+        f"{', '.join(params['management_sources'])}, остальной входящий трафик запрещён"
+    )
+    drafts.append(Draft(node, 5, ["HFW-01"], "nft.apply_host_firewall.v1", params, "HIGH", True, desc[:300]))
+    return drafts, []
+
+
 def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[dict]]:
     fails = run.results.filter(status="FAIL").select_related("node", "node__project")
     by_node: dict = {}
@@ -264,6 +297,9 @@ def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[di
         ids_drafts, ids_missing = _ids_drafts(node, ids, packages)
         drafts += ids_drafts
         not_covered += ids_missing
+        hfw_drafts, hfw_missing = _hostfw_drafts(node, ids, packages)
+        drafts += hfw_drafts
+        not_covered += hfw_missing
 
         covered = {c for d in drafts if d.node == node for c in d.check_ids}
         for cid in sorted(ids - covered):

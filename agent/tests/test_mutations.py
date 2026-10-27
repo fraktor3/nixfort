@@ -518,6 +518,46 @@ class SuricataProfileTests(unittest.TestCase):
         self.assertEqual(e.sys.suri_events, [])
 
 
+class NftHostFirewallTests(unittest.TestCase):
+    PARAMS = {"version": 1, "management_sources": ["10.77.0.10"], "allow_ports": [80, 443], "rollback_timeout_s": 90}
+
+    def test_apply_commit_no_ip_forward_required(self):
+        e = Env()
+        e.files["/proc/sys/net/ipv4/ip_forward"] = "0\n"  # a server is not a router
+        r = e.call("nft.apply_host_firewall.v1", self.PARAMS)
+        self.assertEqual(r["state"], "OK", r)
+        owned = open(e.profile.paths["nft_owned"]).read()
+        self.assertIn("ip saddr { 10.77.0.10 } tcp dport 22 accept", owned)
+        self.assertIn("tcp dport { 80, 443 } accept", owned)
+        self.assertNotIn("chain forward", owned)
+        self.assertEqual(e.sys.nft_events, ["load", "enable"])
+        sid = r["result"]["snapshot_id"]
+        self.assertEqual(e.call("mutation.commit.v1", {"snapshot_id": sid})["result"]["committed"], True)
+
+    def test_rollback_removes_table(self):
+        e = Env()
+        sid = e.call("nft.apply_host_firewall.v1", self.PARAMS)["result"]["snapshot_id"]
+        e.call("mutation.rollback_now.v1", {"snapshot_id": sid})
+        self.assertFalse(os.path.exists(e.profile.paths["nft_owned"]))
+        self.assertIsNone(e.sys.nft_table)
+
+    def test_conflict_and_injection_refused(self):
+        foreign = {
+            "nftables": [
+                {"chain": {"family": "ip", "table": "filter", "name": "INPUT", "hook": "input", "policy": "drop"}}
+            ]
+        }
+        self.assertEqual(Env(nft_ruleset=foreign).call("nft.apply_host_firewall.v1", self.PARAMS)["state"], "REJECTED")
+        e = Env()
+        for bad in (
+            {**self.PARAMS, "allow_ports": [80, 80]},  # duplicate
+            {**self.PARAMS, "allow_ports": [0]},  # out of range
+            {**self.PARAMS, "management_sources": []},  # empty
+            {**self.PARAMS, "management_sources": ["10.0.0.0/24"]},
+        ):
+            self.assertEqual(e.call("nft.apply_host_firewall.v1", bad)["state"], "REJECTED", bad)
+
+
 class RollbackLauncherTests(unittest.TestCase):
     def test_rejects_bad_argument(self):
         from nixfort_agent.rollback_main import main

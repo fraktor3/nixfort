@@ -24,13 +24,18 @@ def test_closed_port_is_connection_refused():
 
 def test_paramiko_connect_to_closed_port_is_connection_refused(tmp_path):
     """S-007 on the lab: Paramiko wraps the refusal in NoValidConnectionsError -> was reported as unreachable."""
+    # The key is generated in-process: the web image has no ssh-keygen (S-008 on the lab).
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
     from apps.execution.transport import SSHTransport
 
+    key = ed25519.Ed25519PrivateKey.generate()
     kp = tmp_path / "k"
-    import subprocess
-
-    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(kp)], check=True)
-    host_pub = (tmp_path / "k.pub").read_text().split()
+    kp.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.OpenSSH,
+                                     serialization.NoEncryption()))  # fmt: skip
+    host_pub = key.public_key().public_bytes(serialization.Encoding.OpenSSH,
+                                             serialization.PublicFormat.OpenSSH).decode().split()  # fmt: skip
     t = SSHTransport(host="127.0.0.1", port=_free_port(), username="nixfort", key_path=str(kp),
                      host_key_type=host_pub[0], host_key_b64=host_pub[1], connect_timeout=3)  # fmt: skip
     with pytest.raises(TransportError) as e:

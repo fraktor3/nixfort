@@ -10,7 +10,7 @@ from .. import AGENT_VERSION, parsers
 from ..context import Context
 from ..errors import ToolError
 from ..registry import action
-from ..schema import EMPTY
+from ..schema import EMPTY, Int, Obj
 
 PACKAGES = ("nftables", "fail2ban", "suricata", "openssh-server")
 SERVICES = ("ssh", "nftables", "fail2ban", "suricata", "ufw", "firewalld")
@@ -93,3 +93,18 @@ def collect_listeners(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
     if res.returncode != 0:
         raise ToolError("tool_failed", "ss")
     return {"listeners": parsers.parse_ss_listeners(res.stdout)}
+
+
+@action("system.read_auth_failures.v1", Obj({"hours": Int(1, 168)}))
+def read_auth_failures(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+    """Recent SSH authentication failures from journald (sshd): counts per source IP and per attempted user.
+    Read-only; only aggregated counts and the attempted usernames are returned, never passwords or full lines."""
+    if not os.access(ctx.profile.bin("journalctl"), os.X_OK):
+        from ..errors import ToolError
+
+        raise ToolError("tool_missing", "journalctl")
+    res = ctx.tool("journalctl", "_COMM=sshd", "--since", f"-{int(params['hours'])}h",
+                   "--no-pager", "-q", "-o", "cat", timeout=30)  # fmt: skip
+    data = parsers.parse_auth_failures(res.stdout)
+    data["window_hours"] = int(params["hours"])
+    return data

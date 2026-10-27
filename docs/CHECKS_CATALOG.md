@@ -27,6 +27,7 @@
 | FW-02 | FW | Политика NIXFORT применена | G | nft.inspect | nixfort_table_present и policy_meta.policy_version = активная версия политики | HIGH | nft.apply_policy |
 | FW-03 | FW | Запрет по умолчанию в forward | G | nft.inspect | у chain forward таблицы nixfort policy = drop | HIGH | nft.apply_policy |
 | FW-04 | FW | Управляющий доступ сохранён | G | nft.inspect | в chain input есть accept tcp/22 от всех management_sources проекта | CRITICAL | nft.apply_policy |
+| HFW-01 | HFW | Хостовый межсетевой экран сервера | S | collect_facts + nft.inspect | таблица `inet nixfort` с input `policy drop`, SSH с контроллера, открыты только заявленные порты (`expected_tcp_ports`) | HIGH | `nft.apply_host_firewall.v1` (перед ним установка nftables, если нет) |
 | F2B-01 | F2B | Fail2ban установлен и работает | S | collect_facts | пакет установлен и служба active | HIGH | pkg.install_security_tool(fail2ban) |
 | F2B-02 | F2B | Jail sshd включён | S | fail2ban.read_status | sshd.enabled = true | HIGH | fail2ban.apply_sshd_profile |
 | F2B-03 | F2B | Параметры защиты от перебора | S | fail2ban.read_status | maxretry ≤ 5 и bantime ≥ 600 | MEDIUM | fail2ban.apply_sshd_profile |
@@ -42,6 +43,7 @@
 - F2B-02, F2B-03 → один `fail2ban.apply_sshd_profile.v1` (ignore_ips = mgmt IP контроллера);
 - FW-02..04 → один `nft.apply_policy.v1` (параметры строятся из активной политики);
 - IDS-02, IDS-03 → один `suricata.apply_sensor_profile.v1`;
+- HFW-01 (сервер) → `nft.apply_host_firewall.v1` (input-only; порядок — после ssh, своя ветка);
 - F2B-01 / IDS-01 / FW-01 (нет пакета) → `pkg.install_security_tool.v1` **перед** соответствующей настройкой.
 Порядок элементов в плане: install → fail2ban → ssh → suricata → nft (от низкого риска к высокому).
 Уровень риска плана = максимальный риск элемента: nft и SSH-02 — HIGH, ssh прочее и suricata — MEDIUM, fail2ban и install — LOW.

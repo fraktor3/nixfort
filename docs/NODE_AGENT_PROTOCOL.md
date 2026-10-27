@@ -75,6 +75,7 @@
 | `system.ping.v1` | R | — | `{"agent_version","os_profile","hostname"}` |
 | `system.collect_facts.v1` | R | — | os(id, version, arch, kernel), hostname, interfaces[{name, ipv4[], state}], routes[], time_sync{service, synchronized}, journald_active, ip_forward, ipv6_present, packages{nftables, fail2ban, suricata, openssh-server: version\|null}, services{ssh, nftables, fail2ban, suricata, ufw, firewalld: active\|inactive\|absent} |
 | `system.collect_listeners.v1` | R | — | listeners[{proto, addr, port, process}] (из `ss -H -ltnp`) |
+| `system.read_auth_failures.v1` | R | `hours: 1..168` | `{total, by_source[{ip,count}], by_user[{value,count}], window_hours}` — неудачные входы sshd из journald; только агрегаты и имена пользователей, без паролей и строк |
 | `ssh.read_effective_config.v1` | R | — | `sshd -T` → dict нужных ключей; `config_valid` (`sshd -t`), `validate_stderr` (обрезан) |
 | `ssh.apply_hardening_profile.v1` | M | `permit_root_login: "no"`, `password_authentication: bool`, `max_auth_tries: int 1..6`, `login_grace_time_s: int 10..120`, `x11_forwarding: bool`, `rollback_timeout_s: int 30..300` | `snapshot_id`, `validated`, `applied`, `timer_armed` |
 | `fail2ban.read_status.v1` | R | — | service, jails[], sshd{enabled, maxretry, bantime, findtime, currently_banned, banned_ips[]} (через `fail2ban-client get`) |
@@ -82,6 +83,7 @@
 | `fail2ban.unban.v1` | M* | `ip: IPv4` | `{unbanned: bool}` (*без снимка — лабораторная операция снятия тестовой блокировки) |
 | `nft.inspect.v1` | R | — | nft_version, tables[{family, name}], nixfort_table_present, nixfort_ruleset_sha256, conflict{ufw, firewalld, docker, foreign_base_chains[]}, nixfort_chains{input, forward: {hook, policy}}, nixfort_input_ssh_sources[], policy_meta (из комментария таблицы: policy_version, rules_sha256) |
 | `nft.apply_policy.v1` | M | `policy_version: 1..10⁶`, `management_sources: list[IPv4] 1..4`, `forward_allow: list[{src: IPv4\|CIDR, dst: IPv4, port: 1..65535}] ≤200`, `input_allow: list[{src: IPv4\|CIDR, port}] ≤20`, `rollback_timeout_s: 30..300` | `snapshot_id`, `validated`, `applied`, `timer_armed`, `rules_sha256`, `ruleset_sha256`. Отказ `conflict`, если `ip_forward≠1`, активен UFW/firewalld, есть правила Docker или чужие базовые цепочки с `policy drop` |
+| `nft.apply_host_firewall.v1` | M | `version: 1..10⁶`, `management_sources: list[IPv4] 1..4`, `allow_ports: list[int] ≤30`, `rollback_timeout_s: 30..300` | `snapshot_id, validated, applied, timer_armed, rules_sha256, ruleset_sha256` — входная цепочка `policy drop`, SSH с management, открыты только `allow_ports`; цепочки forward нет (сервер не маршрутизатор). Не требует `ip_forward=1` |
 | `suricata.read_status.v1` | R | — | service, version, config_test{ok, stderr_tail}, eve{enabled, path, readable, size}, af_packet_interfaces[], nixfort_test_rule_loaded |
 | `suricata.read_events.v1` | R | `since_ts: ISO8601 \| null`, `limit: 1..500`, `types: subset{alert, anomaly}` | events[] (только поля: timestamp, event_type, src_ip, src_port, dest_ip, dest_port, proto, alert{signature_id, signature, severity}) |
 | `suricata.apply_sensor_profile.v1` | M | `interface: ^[a-z][a-z0-9]{0,14}$` (должен существовать в /sys/class/net), `test_rules: bool`, `rollback_timeout_s` | `snapshot_id`, `validated (suricata -T)`, `applied`, `timer_armed`. Файлы: `/etc/suricata/nixfort-sensor.yaml`, `/etc/suricata/rules/nixfort-test.rules`, строка `include:` в `suricata.yaml` (все в снимке) |
@@ -130,8 +132,8 @@ table inet nixfort {
 
 Проверено на настоящем ядре (`agent/tests/test_nft_real.py`): три сетевых пространства клиент → шлюз → сервер; до правил 80/8080/22 OPEN, после — 80 OPEN, 8080/22 TIMEOUT; повторное применение не дублирует таблицу; удаление таблицы возвращает исходное состояние.
 
-## 8. Реализация (агент 1.5.0)
-Реализованы (агент 1.5.0): все read-действия, `nft.apply_policy.v1`, `suricata.apply_sensor_profile.v1`, `net.ssh_login_attempts.v1`, `net.capture.v1`, `net.load_test.v1`, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`.
+## 8. Реализация (агент 1.6.0)
+Реализованы (агент 1.6.0): все read-действия, `system.read_auth_failures.v1`, `nft.apply_policy.v1`, `suricata.apply_sensor_profile.v1`, `net.ssh_login_attempts.v1`, `net.capture.v1`, `net.load_test.v1`, `mutation.commit.v1`, `mutation.rollback_now.v1`, `mutation.snapshot_status.v1`, `pkg.install_security_tool.v1` (fail2ban+python3-systemd, suricata, nftables), `fail2ban.apply_sshd_profile.v1`, `fail2ban.unban.v1`, `ssh.apply_hardening_profile.v1`, `nft.apply_host_firewall.v1`.
 Все действия протокола реализованы.
 
 ### Профиль датчика Suricata

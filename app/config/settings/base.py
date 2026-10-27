@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "apps.remediation",
     "apps.ids",
     "apps.pcap",
+    "apps.seclog",
     "apps.reports",
 ]
 

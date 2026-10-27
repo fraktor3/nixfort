@@ -256,5 +256,30 @@ class LoadTestTests(unittest.TestCase):
         self.assertLessEqual(res["attempted"], 60)
 
 
+class AuthFailuresTests(unittest.TestCase):
+    JOURNAL = (
+        "Failed password for invalid user admin from 10.88.0.10 port 5 ssh2\n"
+        "Invalid user root from 10.88.0.10 port 6\n"
+        "Failed password for labadmin from 10.88.0.10 port 7 ssh2\n"
+        "Accepted password for ok from 10.77.0.10 port 8 ssh2\n"
+    )
+
+    def test_reads_and_aggregates(self):
+        runner = FakeRunner({("_COMM=sshd",): ok(self.JOURNAL)})
+        r = call(request("system.read_auth_failures.v1", {"hours": 24}), runner)
+        self.assertEqual(r["state"], "OK")
+        res = r["result"]
+        self.assertEqual(res["total"], 3)
+        self.assertEqual(res["by_source"][0], {"ip": "10.88.0.10", "count": 3})
+        self.assertEqual(res["window_hours"], 24)
+        argv = runner.calls[0]
+        self.assertEqual(argv[0], "/usr/bin/journalctl")
+        self.assertIn("_COMM=sshd", argv)
+
+    def test_params_strict(self):
+        for bad in ({"hours": 0}, {"hours": 999}, {}):
+            self.assertEqual(call(request("system.read_auth_failures.v1", bad), FakeRunner())["state"], "REJECTED")
+
+
 if __name__ == "__main__":
     unittest.main()

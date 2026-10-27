@@ -240,6 +240,31 @@ def fw_04(facts, ctx):
     )
 
 
+# ---------------------------------------------------------------- HFW (server host firewall)
+def hfw_01(facts, ctx):
+    n = need(facts, "nft")
+    present = req(n, "nixfort_table_present", "nft")
+    want = "хостовый экран: input drop, SSH с контроллера, открыты только заявленные порты"
+    if not present:
+        return Outcome(FAIL, None, want, "Хостовый межсетевой экран не настроен: таблица NIXFORT отсутствует.")
+    chains = n.get("nixfort_chains") or {}
+    inp = (chains.get("input") or {}).get("policy")
+    ssh_sources = n.get("nixfort_input_ssh_sources") or []
+    ports = set(n.get("nixfort_input_ports") or [])
+    obs = {"input_policy": inp, "ssh_sources": ssh_sources, "ports": sorted(ports)}
+    problems = []
+    if inp != "drop":
+        problems.append("во входящей цепочке нет запрета по умолчанию")
+    if ctx.controller_ip and ctx.controller_ip not in ssh_sources:
+        problems.append("нет разрешения SSH с контроллера")
+    missing = sorted(set(ctx.expected_tcp_ports) - ports)
+    if missing:
+        problems.append(f"не открыты заявленные порты: {missing}")
+    if problems:
+        return Outcome(FAIL, obs, want, "; ".join(problems).capitalize() + ".")
+    return Outcome(PASS, obs, want, "Хостовый экран активен: лишние порты закрыты, управление сохранено.")
+
+
 # ---------------------------------------------------------------- F2B (server)
 def f2b_01(facts, ctx):
     s = need(facts, "system")
@@ -513,6 +538,18 @@ CATALOG: tuple[CheckDef, ...] = (
         "nft.apply_policy.v1",
         "Архитектура NIXFORT §6",
         fw_04,
+    ),
+    CheckDef(
+        "HFW-01",
+        "HFW",
+        "Хостовый межсетевой экран сервера",
+        "HIGH",
+        frozenset({"server"}),
+        ("system", "nft"),
+        "input drop, SSH с контроллера, только заявленные порты",
+        "nft.apply_host_firewall.v1",
+        "CIS Controls 4: host-based firewall; ФСТЭК: ограничение сетевого доступа",
+        hfw_01,
     ),
     CheckDef(
         "F2B-01",

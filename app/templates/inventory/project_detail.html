@@ -14,6 +14,7 @@
     <a class="btn btn-outline-secondary" href="{% url 'ids:sensor' project.id %}">IDS</a>
     <a class="btn btn-outline-secondary" href="{% url 'pcap:list' project.id %}">Анализ трафика</a>
     <a class="btn btn-outline-secondary" href="{% url 'ids:protection' project.id %}">Проверка защиты</a>
+    <a class="btn btn-outline-secondary" href="{% url 'seclog:seclog' project.id %}">Журналы безопасности</a>
     <a class="btn btn-outline-secondary" href="{% url 'reports:list' project.id %}">Отчёты</a>
     <a class="btn btn-outline-secondary" href="{% url 'inventory:portscan_list' project.id %}">Сканирование</a>
     <a class="btn btn-outline-secondary" href="{% url 'execution:job_list' project.id %}">Задания</a>

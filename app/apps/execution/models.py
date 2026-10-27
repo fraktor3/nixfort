@@ -20,6 +20,7 @@ class JobType(models.TextChoices):
     CAPTURE = "CAPTURE", "Захват трафика"
     PCAP_ANALYZE = "PCAP_ANALYZE", "Анализ PCAP"
     REPORT = "REPORT", "Отчёт"
+    SECURITY_LOGS = "SECURITY_LOGS", "Журналы безопасности"
 
 
 MUTATION_TYPES = frozenset({JobType.PLAN_EXECUTE})

@@ -187,7 +187,36 @@ def _verify_suricata(client: AgentClient, item: RemediationItem, env: dict | Non
     return True, f"Suricata {res.get('version')} работает на {iface}, EVE пишется, правила NIXFORT загружены", evidence
 
 
+def _verify_host_fw(client: AgentClient, item: RemediationItem, env: dict | None = None) -> tuple[bool, str, dict]:
+    from .planner import host_rules_sha256
+
+    r = client.call("nft.inspect.v1")  # a new SSH session proves management to the server survived
+    if not r.ok:
+        return False, f"нет нового SSH-соединения с сервером или данных ({r.state} {r.error_code})", r.as_fact()
+    p = item.params
+    meta = r.result.get("policy_meta") or {}
+    chains = r.result.get("nixfort_chains") or {}
+    sources = r.result.get("nixfort_input_ssh_sources") or []
+    ports = set(r.result.get("nixfort_input_ports") or [])
+    problems = []
+    if meta.get("rules_sha256") != host_rules_sha256(p):
+        problems.append(f"в ядре не те правила ({meta})")
+    if (chains.get("input") or {}).get("policy") != "drop":
+        problems.append("во входящей цепочке нет policy drop")
+    missing_mgmt = [ip for ip in p["management_sources"] if ip not in sources]
+    if missing_mgmt:
+        problems.append(f"нет разрешения SSH для {', '.join(missing_mgmt)}")
+    missing_ports = [pt for pt in p["allow_ports"] if pt not in ports]
+    if missing_ports:
+        problems.append(f"не открыты порты {missing_ports}")
+    evidence = {"policy_meta": meta, "chains": chains, "ssh_sources": sources, "ports": sorted(ports)}
+    if problems:
+        return False, "; ".join(problems), evidence
+    return True, f"хостовый экран в ядре: открыты {sorted(ports)}, SSH с {sources}", evidence
+
+
 VERIFY: dict[str, Callable[..., tuple[bool, str, dict]]] = {
+    "nft.apply_host_firewall.v1": _verify_host_fw,
     "suricata.apply_sensor_profile.v1": _verify_suricata,
     "pkg.install_security_tool.v1": _verify_pkg,
     "fail2ban.apply_sshd_profile.v1": _verify_f2b,

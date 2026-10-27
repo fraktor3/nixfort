@@ -44,6 +44,7 @@ _DEBIAN_BINS = {
     "ufw": ("/usr/sbin/ufw",),
     "ssh_client": ("/usr/bin/ssh",),
     "tcpdump": ("/usr/bin/tcpdump", "/usr/sbin/tcpdump"),
+    "journalctl": ("/usr/bin/journalctl", "/bin/journalctl"),
     "timeout": ("/usr/bin/timeout",),
 }
 
