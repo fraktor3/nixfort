@@ -105,8 +105,8 @@ def test_audit_log_visibility(client_as, make_user, project, other_project, admi
     audit.log(admin, Action.PROJECT_UPDATED, project=other_project, marker="B")
     u = make_user("pv", Role.VIEWER, project=project)
     body = client_as(u).get("/audit/").content.decode()
-    assert "&#x27;A&#x27;" in body or "'A'" in body
-    assert "'B'" not in body and "&#x27;B&#x27;" not in body
+    assert "marker=A" in body
+    assert "marker=B" not in body
 
 
 def test_redact_does_not_hide_status_names():

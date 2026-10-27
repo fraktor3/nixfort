@@ -93,7 +93,7 @@ class Flow(BaseModel):
                 src = ipaddress.ip_network(self.src_cidr, strict=False)
                 if not any(ipaddress.ip_address(ip) in src for ip in pf.data_ips):
                     errors["probe_from"] = (
-                        "У тестового узла нет рабочего адреса внутри источника — проверка будет недостоверной."
+                        "У тестового узла нет рабочего адреса внутри источника, поэтому проверка будет недостоверной."
                     )
         if errors:
             raise ValidationError(errors)

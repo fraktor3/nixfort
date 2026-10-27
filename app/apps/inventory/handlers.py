@@ -29,7 +29,7 @@ def inventory(job: Job):
         services.set_progress(job, int(i * 100 / max(1, len(nodes))), phase=f"узел {node.name}")
         if node.confirmed_hostkey is None:
             skipped.append(node.name)
-            services.log(job, f"{node.name}: ключ узла не подтверждён — пропущен", "WARN")
+            services.log(job, f"{node.name}: ключ узла не подтверждён, узел пропущен", "WARN")
             continue
         snap = collector.collect_node(node, job, log=lambda m: services.log(job, m))
         states = {k: f["state"] for k, f in snap.facts.items()}
@@ -49,7 +49,7 @@ def fetch_hostkey(job: Job):
         key_type, blob = fetch_host_key(node.mgmt_ip, node.ssh_port)
     except TransportError as exc:
         hint = TRANSPORT_HINTS.get(exc.code, "")
-        services.log(job, f"Не удалось получить ключ: {exc.code}" + (f" — {hint}" if hint else ""), "ERROR")
+        services.log(job, f"Не удалось получить ключ: {exc.code}" + (f". {hint}" if hint else ""), "ERROR")
         return JobState.FAILED, {"error": exc.code}
     _, _, fp = v.parse_hostkey_line(f"{key_type} {blob}")
     inv_services.set_hostkey(

@@ -1,0 +1,4 @@
+{% extends "base.html" %}
+{% block title %}Политика конфиденциальности · NIXFORT{% endblock %}
+{% block content %}{% include "core/_privacy_body.html" %}{% endblock %}
+{% block public_content %}<p class="mb-16"><a class="brand" href="{% url 'accounts:login' %}">{% include "core/_mark.html" %}NIXFORT</a></p>{% include "core/_privacy_body.html" %}{% endblock %}

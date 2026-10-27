@@ -28,7 +28,7 @@ class Conflict:
     @property
     def message(self) -> str:
         if self.kind == "contradiction":
-            return f"Противоречие: «{self.a}» и «{self.b}» — пересекающиеся источники, разные действия."
+            return f"Противоречие: «{self.a}» и «{self.b}»: пересекающиеся источники, разные действия."
         return f"Дубликат: «{self.a}» и «{self.b}»."
 
 

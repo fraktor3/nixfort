@@ -153,7 +153,7 @@ def ids_marker(job, log, client_factory, sleep) -> ProtectionTest:
         list(policy.flows.filter(action=Flow.Action.ALLOW, probe_from=client).order_by("-critical")) if policy else []
     )
     if not flows:
-        raise ScenarioError("нет разрешённого потока политики с пробой с тестового клиента — некуда отправить маркер")
+        raise ScenarioError("нет разрешённого потока политики с пробой с тестового клиента, некуда отправить маркер")
     f = flows[0]
     since = timezone.now() - timedelta(seconds=5)
     log(f"{client.name} → {f.dst_ip}:{f.port}: отправка тестовой строки NIXFORT-IDS-TEST-7f3a", "INFO")
@@ -234,7 +234,7 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
     if expected == Flow.Action.DENY:
         layers.append({
             "layer": "Межсетевой экран (шлюз)",
-            "expected": "SSH из сети пользователей запрещён политикой — соединения не устанавливаются",
+            "expected": "SSH из сети пользователей запрещён политикой, соединения не устанавливаются",
             "observed": f"дошли до sshd: {sa.get('REJECTED', 0)} из 6; не установлены: "
                         f"{sa.get('TIMEOUT', 0) + sa.get('CLOSED', 0)}",
             "ok": sa.get("REJECTED", 0) == 0,
@@ -259,7 +259,7 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
         reached, blocked = sb.get("REJECTED", 0), sb.get("CLOSED", 0) + sb.get("TIMEOUT", 0)
         layers.append({
             "layer": "Хостовый межсетевой экран (сервер)",
-            "expected": f"SSH на сервер разрешён только с {', '.join(host_fw)} — попытки с {client.mgmt_ip} "
+            "expected": f"SSH на сервер разрешён только с {', '.join(host_fw)}, попытки с {client.mgmt_ip} "
                         "не доходят до sshd",
             "observed": f"дошли до sshd: {reached} из 7; не установлены: {blocked}",
             "ok": b.ok and reached == 0 and blocked > 0,
@@ -267,7 +267,7 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
         if b.ok and reached == 0:
             layers.append({
                 "layer": "Fail2ban (сервер)",
-                "expected": f"блокировка после {jail.get('maxretry', '—')} неудачных попыток, если они дойдут до sshd",
+                "expected": f"блокировка после {jail.get('maxretry', '?')} неудачных попыток, если они дойдут до sshd",
                 "observed": "не потребовался: попытки остановил хостовый межсетевой экран до sshd"
                             + ("" if jail.get("enabled") else " (jail sshd не включён)"),
                 "ok": None,
@@ -293,7 +293,7 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
         })  # fmt: skip
     else:
         layers.append({"layer": "Fail2ban (сервер)", "expected": "jail sshd включён",
-                       "observed": "Fail2ban на сервере не настроен — шаг B не выполнялся", "ok": False})  # fmt: skip
+                       "observed": "Fail2ban на сервере не настроен, шаг B не выполнялся", "ok": False})  # fmt: skip
     return _save(job, ProtectionTest.Scenario.SSH_BRUTEFORCE, layers, details)
 
 
@@ -344,7 +344,7 @@ def _start_capture(job, sensor: Node, client_factory, log):
 
     th = threading.Thread(target=record, name="nixfort-load-capture", daemon=True)
     th.start()
-    log(f"запись трафика на {sensor.name}/{iface} ({LOAD_CAPTURE_S} с) — параллельно с нагрузкой", "INFO")
+    log(f"запись трафика на {sensor.name}/{iface} ({LOAD_CAPTURE_S} с) параллельно с нагрузкой", "INFO")
     return cap, th, box
 
 
@@ -398,7 +398,7 @@ def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
 
     # A. load against an allowed service — it must keep answering
     ap = allowed[0]
-    log(f"A. нагрузка на разрешённый сервис {data_ip}:{ap} — {LOAD_CONNECTIONS} коротких соединений", "INFO")
+    log(f"A. нагрузка на разрешённый сервис {data_ip}:{ap}, {LOAD_CONNECTIONS} коротких соединений", "INFO")
     a = _call(
         client_factory,
         client,
@@ -431,7 +431,7 @@ def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
     # B. load against a denied port — the firewall must absorb it before the service
     if denied:
         dp = denied[0]
-        log(f"B. нагрузка на запрещённый порт {data_ip}:{dp} — межсетевой экран должен поглотить её", "INFO")
+        log(f"B. нагрузка на запрещённый порт {data_ip}:{dp}, межсетевой экран должен поглотить её", "INFO")
         b = _call(
             client_factory,
             client,
@@ -520,7 +520,7 @@ def run(job, log, client_factory=None, sleep=None):
         return JobState.FAILED, {"test": str(t.id), "error": str(exc)}
     for lay in t.layers:
         mark = "OK" if lay["ok"] else "НЕТ" if lay["ok"] is False else "н/д"
-        log(f"{lay['layer']}: {mark} — {lay['observed']}", "INFO" if lay["ok"] else "WARN")
+        log(f"{lay['layer']}: {mark}, {lay['observed']}", "INFO" if lay["ok"] else "WARN")
     state = {V.PROTECTED: JobState.SUCCEEDED, V.PARTIAL: JobState.PARTIAL}.get(t.verdict, JobState.FAILED)
     return state, {"test": str(t.id), "verdict": t.verdict}
 

@@ -1,32 +1,36 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Анализатор трафика — {{ project.name }}{% endblock %}
+{% block title %}Трафик · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / трафик</nav>
-<h1 class="h3">Анализатор трафика</h1>
-<p class="text-muted small">Короткая запись трафика на интерфейсе узла (только заголовки пакетов — содержимое не записывается) или загрузка готового файла PCAP. Разбор движком TShark (Wireshark): протоколы, кто с кем общается, активные адреса и порты, график по времени, признаки сканирования и подбора пароля.</p>
-{% if can_run %}<div class="row g-3 mb-4">
-  <div class="col-lg-7"><div class="card h-100"><div class="card-header">Записать трафик на узле</div><div class="card-body">
-  {% if targets %}<form method="post" action="{% url 'pcap:capture' project.id %}" class="row g-2 align-items-end">{% csrf_token %}
-    <div class="col-7"><label class="form-label small">Узел и интерфейс</label><select class="form-select form-select-sm" name="target">
-      {% for t in targets %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}</select></div>
-    <div class="col-3"><label class="form-label small">Секунд</label><input class="form-control form-control-sm" name="duration_s" type="number" min="3" max="60" value="10"></div>
-    <div class="col-2"><label class="form-label small">&nbsp;</label><button class="btn btn-sm btn-primary w-100">Записать</button></div>
-    <div class="col-12 mt-2"><label class="form-label small">Профиль</label>
-      {% for v, t in profiles %}<div class="form-check form-check-inline small"><input class="form-check-input" type="radio" name="profile" value="{{ v }}" {% if forloop.first %}checked{% endif %}><label class="form-check-label">{{ t }}</label></div>{% endfor %}</div>
+<div class="page-head"><div><h1>Анализ трафика</h1>
+  <div class="sub">Короткая запись на интерфейсе узла или загрузка готового файла PCAP. Сохраняются только заголовки пакетов. Разбор выполняет TShark: протоколы, адреса, порты, соединения, график по времени, признаки сканирования, подбора пароля и всплеска соединений.</div></div></div>
+{% if can_run %}<div class="grid g-1-1 stretch">
+  <section class="panel" aria-labelledby="h-cap"><div class="panel-head"><h2 id="h-cap">Записать на узле</h2></div><div class="panel-body">
+  {% if targets %}<form method="post" action="{% url 'pcap:capture' project.id %}">{% csrf_token %}
+    <div class="toolbar">
+      <div class="field"><label for="tg">Узел и интерфейс</label><select id="tg" name="target">{% for t in targets %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="dur">Длительность, с</label><input id="dur" name="duration_s" type="number" min="3" max="60" value="10" aria-describedby="dur_help"></div>
+      <button class="btn primary">Записать</button>
+    </div>
+    <div class="help small muted mt-8" id="dur_help">От 3 до 60 секунд, не более 5000 пакетов.</div>
+    <div class="choices mt-8" role="radiogroup" aria-label="Профиль записи">{% for v, t in profiles %}<label class="check"><input type="radio" name="profile" value="{{ v }}" {% if forloop.first %}checked{% endif %}> <span>{{ t }}</span></label>{% endfor %}</div>
   </form>
-  {% else %}<span class="text-muted small">Нет узла с ролью «Шлюз» или «Датчик IDS» с инвентаризацией. Сначала выполните инвентаризацию.</span>{% endif %}
-  </div></div></div>
-  <div class="col-lg-5"><div class="card h-100"><div class="card-header">Загрузить файл PCAP</div><div class="card-body">
-    <form method="post" action="{% url 'pcap:upload' project.id %}" enctype="multipart/form-data" class="d-flex gap-2 align-items-end">{% csrf_token %}
-      <div class="flex-grow-1"><label class="form-label small">Файл .pcap / .pcapng (до 100 МБ)</label><input class="form-control form-control-sm" type="file" name="file" accept=".pcap,.pcapng,.cap"></div>
-      <button class="btn btn-sm btn-outline-primary">Загрузить</button></form>
-    <div class="form-text">Файл проверяется по сигнатуре; на диске хранится под именем-хешем.</div>
-  </div></div></div>
+  {% else %}<p class="muted">Нет узла с ролью «шлюз» или «датчик IDS» с выполненной инвентаризацией.</p>{% endif %}
+  </div></section>
+  <section class="panel" aria-labelledby="h-up"><div class="panel-head"><h2 id="h-up">Загрузить файл</h2></div><div class="panel-body">
+    <form method="post" action="{% url 'pcap:upload' project.id %}" enctype="multipart/form-data">{% csrf_token %}
+      <div class="field"><label for="pf">Файл .pcap или .pcapng</label><input id="pf" type="file" name="file" accept=".pcap,.pcapng,.cap" aria-describedby="pf_help">
+        <div class="help" id="pf_help">До 100 МБ. Файл проверяется по сигнатуре формата и хранится под именем, равным его SHA-256.</div></div>
+      <button class="btn">Загрузить и разобрать</button></form>
+  </div></section>
 </div>{% endif %}
-<table class="table"><thead><tr><th>Когда</th><th>Источник</th><th>Пакетов</th><th>Находки</th><th>Состояние</th></tr></thead><tbody>
-{% for r in items %}<tr><td><a href="{% url 'pcap:detail' project.id r.id %}">{{ r.created_at|date:"d.m.Y H:i:s" }}</a></td>
-  <td class="small">{{ r.get_source_display }}: {{ r.origin }}</td><td>{{ r.analysis.packets|default:"—" }}</td>
-  <td>{% if r.analysis.findings %}<span class="badge text-bg-danger">{{ r.analysis.findings|length }}</span>{% else %}—{% endif %}</td>
-  <td><span class="badge text-bg-{{ r.state|status_class }}">{{ r.get_state_display }}</span></td></tr>
-{% empty %}<tr><td colspan="5" class="text-muted">Записей нет.</td></tr>{% endfor %}</tbody></table>
+<section class="panel section-gap" aria-labelledby="h-list"><div class="panel-head"><h2 id="h-list">Записи</h2><span class="meta">{{ items|length }}</span></div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th class="first">Запись</th><th>Источник</th><th class="num">Пакетов</th><th class="num">Новых TCP</th><th>Находки</th><th class="last">Состояние</th></tr></thead>
+    <tbody>{% for r in items %}<tr><td class="first"><a href="{% url 'pcap:detail' project.id r.id %}">{{ r.created_at|date:"d.m.Y H:i:s" }}</a><span class="sub">{{ r.created_by|default:"система" }}</span></td>
+      <td>{{ r.get_source_display }}<span class="sub mono">{{ r.origin }}</span></td>
+      <td class="num">{{ r.analysis.packets|default_if_none:"–" }}</td><td class="num">{{ r.analysis.tcp_new_connections|default_if_none:"–" }}</td>
+      <td>{% for f in r.analysis.findings %}<span class="st s-fail">{{ f.title }}</span>{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="muted">нет</span>{% endfor %}</td>
+      <td class="last"><span class="st {{ r.state|st }}">{{ r.get_state_display }}</span></td></tr>
+    {% empty %}<tr><td colspan="6" class="empty">Записей нет.</td></tr>{% endfor %}</tbody>
+  </table></div></section>
 {% endblock %}

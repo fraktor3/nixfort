@@ -25,4 +25,4 @@ class RoleAssignment(BaseModel):
 
     def __str__(self) -> str:
         scope = self.project.name if self.project_id else "глобально"
-        return f"{self.user} — {self.get_role_display()} ({scope})"
+        return f"{self.user}: {self.get_role_display()} ({scope})"

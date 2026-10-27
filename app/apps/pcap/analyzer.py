@@ -106,8 +106,8 @@ def summarize(tsv: str) -> dict[str, Any]:
                 acc[0] += 1
                 acc[2] = max(acc[2], t)
         times.append((t, n, is_syn))
-        protos[(label or "—").split("/")[0][:24]][0] += 1
-        protos[(label or "—").split("/")[0][:24]][1] += n
+        protos[(label or "без метки").split("/")[0][:24]][0] += 1
+        protos[(label or "без метки").split("/")[0][:24]][1] += n
         if src:
             talkers[src][0] += 1
             talkers[src][1] += n
@@ -172,7 +172,7 @@ def _findings(scan_ports, ssh_syn, talkers, syn_by_src=None) -> list[dict]:
             "kind": "conn_burst", "severity": "MEDIUM", "src": src, "value": int(cnt),
             "title": "Всплеск попыток TCP-соединений",
             "detail": f"{src}: {int(cnt)} попыток соединения (SYN) за {span:.1f} с "
-                      f"(≈{cnt / span:.0f} в секунду), порты назначения: {plist or '—'}.",
+                      f"(≈{cnt / span:.0f} в секунду), порты назначения: {plist or 'нет'}.",
         })  # fmt: skip
     return out
 

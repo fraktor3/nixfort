@@ -1,11 +1,12 @@
 {% extends "base.html" %}{% load nx %}
+{% block title %}Исправления · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / планы исправлений</nav>
-<h1 class="h3">Планы исправлений</h1>
-<p class="text-muted small">План создаётся из результатов аудита. Выполняет его только администратор после утверждения.</p>
-<table class="table"><thead><tr><th>Создан</th><th>Кем</th><th>Шагов</th><th>Риск</th><th>Состояние</th><th>Утвердил</th></tr></thead><tbody>
-{% for p in plans %}<tr><td><a href="{% url 'remediation:plan_detail' project.id p.id %}">{{ p.created_at|date:"d.m.Y H:i:s" }}</a></td>
-  <td>{{ p.created_by|default:"—" }}</td><td>{{ p.items.count }}</td><td>{{ p.risk }}</td>
-  <td><span class="badge text-bg-{{ p.state|status_class }}">{{ p.get_state_display }}</span></td><td>{{ p.approved_by|default:"—" }}</td></tr>
-{% empty %}<tr><td colspan="6" class="text-muted">Планов нет. Создайте план со страницы результатов аудита.</td></tr>{% endfor %}</tbody></table>
+<div class="page-head"><div><h1>Планы исправлений</h1><div class="sub">План строится из нарушений аудита. Выполнить его может только администратор после утверждения; каждое изменение защищено автооткатом на узле.</div></div></div>
+<section class="panel"><div class="table-wrap"><table class="table">
+  <thead><tr><th class="first">План</th><th>Сформировал</th><th class="num">Шагов</th><th>Риск</th><th>Утвердил</th><th class="last">Состояние</th></tr></thead>
+  <tbody>{% for p in plans %}<tr><td class="first"><a href="{% url 'remediation:plan_detail' project.id p.id %}">{{ p.created_at|date:"d.m.Y H:i:s" }}</a><span class="sub">по аудиту {{ p.audit_run.created_at|date:"d.m.Y H:i" }}</span></td>
+    <td>{{ p.created_by|default:"–" }}</td><td class="num">{{ p.items.count }}</td><td>{{ p.risk }}</td><td>{{ p.approved_by|default:"–" }}</td>
+    <td class="last"><span class="st {{ p.state|st }}">{{ p.get_state_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="6" class="empty">Планов нет. План формируется на странице результатов аудита, если есть нарушения.</td></tr>{% endfor %}</tbody>
+</table></div></section>
 {% endblock %}

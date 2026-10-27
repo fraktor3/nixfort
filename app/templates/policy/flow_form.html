@@ -1,6 +1,8 @@
 {% extends "base.html" %}
+{% block title %}Поток политики · {{ project.name }}{% endblock %}
 {% block content %}
-<h1 class="h3">Поток · черновик v{{ draft.version }}</h1>
-<div class="col-md-7"><form method="post">{% include "core/_form.html" %}
-  <button class="btn btn-primary">Сохранить</button> <a class="btn btn-link" href="{% url 'policy:overview' project.id %}">Отмена</a></form></div>
+<div class="page-head"><div><div class="crumbs"><a href="{% url 'policy:overview' project.id %}">Политика соединений</a> / черновик v{{ draft.version }}</div>
+  <h1>Поток политики</h1><div class="sub">Поток описывает одно TCP-соединение из подсети к адресу и порту узла. «Разрешён» должен работать после изменений, «запрещён» должен блокироваться.</div></div></div>
+<section class="panel form"><div class="panel-body"><form method="post">{% include "core/_form.html" %}
+  <div class="form-actions"><button class="btn primary">Сохранить</button> <a href="{% url 'policy:overview' project.id %}">Отмена</a></div></form></div></section>
 {% endblock %}

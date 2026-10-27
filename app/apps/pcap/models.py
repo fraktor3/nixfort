@@ -41,5 +41,5 @@ class PcapCapture(BaseModel):
     @property
     def origin(self) -> str:
         if self.source == self.Source.CAPTURE:
-            return f"{self.node.name if self.node else '—'}/{self.interface}, {self.duration_s} с"
+            return f"{self.node.name if self.node else 'узел удалён'}/{self.interface}, {self.duration_s} с"
         return self.original_name or "файл"

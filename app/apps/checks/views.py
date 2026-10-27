@@ -37,14 +37,22 @@ def run_start(request, project_id):
 def run_detail(request, project_id, run_id):
     run = get_object_or_404(AuditRun, id=run_id, project=request.project)
     results = list(run.results.select_related("node"))
-    nodes = sorted({r.node for r in results}, key=lambda n: n.name)
+    all_nodes = sorted({r.node for r in results}, key=lambda n: n.name)
+    nodes = [n for n in all_nodes if any(r.node_id == n.id and r.status != "NOT_APPLICABLE" for r in results)]
+    hidden = [n.name for n in all_nodes if n not in nodes]
     grid = {(r.node_id, r.check_id): r for r in results}
-    rows = []
+    from apps.inventory.overview import LAYERS
+
+    group_title = {prefix: title for prefix, title, _ in LAYERS}
+    rows, last_group = [], None
     for check in domain.CATALOG:
         cells = [grid.get((n.id, check.id)) for n in nodes]
         if all(c is None or c.status == "NOT_APPLICABLE" for c in cells):
             continue
-        rows.append({"check": check, "cells": cells})
+        group = check.id.split("-")[0]
+        rows.append({"check": check, "cells": cells,
+                     "group": group_title.get(group, group) if group != last_group else None})  # fmt: skip
+        last_group = group
     return render(
         request,
         "checks/run_detail.html",
@@ -52,6 +60,7 @@ def run_detail(request, project_id, run_id):
             "project": request.project,
             "run": run,
             "nodes": nodes,
+            "hidden": hidden,
             "rows": rows,
             "total": run.summary.get("total", {}),
             "can_plan": has_perm(request.user, Perm.CREATE_PLAN, request.project) and not request.project.is_archived,

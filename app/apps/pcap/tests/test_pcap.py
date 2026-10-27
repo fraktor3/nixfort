@@ -112,7 +112,7 @@ def test_capture_through_agent(client_as, operator, project, lab_nodes, admin, d
 
     monkeypatch.setattr(handlers, "client_for", lambda node: C())
     page = client_as(operator).get(reverse("pcap:list", args=[project.id])).content.decode()
-    assert "enp0s9" in page and "датчик IDS" in page and "— lo" not in page
+    assert "enp0s9" in page and "датчик IDS" in page and ", lo (" not in page
     r = client_as(operator).post(reverse("pcap:capture", args=[project.id]),
                                  {"target": f"{gw.id}:enp0s9", "duration_s": 10, "profile": "no_ssh"})  # fmt: skip
     assert r.status_code == 302

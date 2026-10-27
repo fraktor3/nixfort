@@ -48,7 +48,7 @@ def collect(job, log, client_factory=None) -> tuple[str, dict]:
                             "banned_ips": sshd.get("banned_ips", []), "currently_banned": sshd.get("currently_banned"),
                             "total_banned": sshd.get("total_banned")} if f2b.ok else None)  # fmt: skip
         rows.append(row)
-        log(f"{node.name}: неудачных входов {row['auth']['total'] if row.get('auth') else '—'}, "
+        log(f"{node.name}: неудачных входов {row['auth']['total'] if row.get('auth') else 'нет данных'}, "
             f"в бане {len((row.get('fail2ban') or {}).get('banned_ips') or [])}", "INFO")  # fmt: skip
 
     since = timezone.now() - timedelta(hours=window)

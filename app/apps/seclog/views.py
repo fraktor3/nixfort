@@ -16,7 +16,11 @@ def seclog(request, project_id):
         selected = get_object_or_404(SecuritySummary, id=request.GET["s"], project=project)
     else:
         selected = SecuritySummary.objects.filter(project=project, state="DONE").first()
+    servers = (selected.data.get("servers") or []) if selected else []
+    auth_total = sum(((r.get("auth") or {}).get("total") or 0) for r in servers)
+    banned_total = sum(len((r.get("fail2ban") or {}).get("banned_ips") or []) for r in servers)
     return render(request, "seclog/seclog.html", {
+        "auth_total": auth_total, "banned_total": banned_total,
         "project": project,
         "s": selected,
         "history": SecuritySummary.objects.filter(project=project)[:15],

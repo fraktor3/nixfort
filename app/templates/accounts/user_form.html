@@ -1,5 +1,7 @@
 {% extends "base.html" %}
+{% block title %}Новый пользователь · NIXFORT{% endblock %}
 {% block content %}
-<h1 class="h3">Новый пользователь</h1>
-<div class="col-md-6"><form method="post">{% include "core/_form.html" %}<button class="btn btn-primary">Создать</button></form></div>
+<div class="page-head"><div><div class="crumbs"><a href="{% url 'accounts:user_list' %}">Пользователи</a></div><h1>Новый пользователь</h1>
+  <div class="sub">Пароль не короче 12 символов и не из списка распространённых. Передайте его пользователю отдельным каналом.</div></div></div>
+<section class="panel form"><div class="panel-body"><form method="post">{% include "core/_form.html" %}<div class="form-actions"><button class="btn primary">Создать</button><a href="{% url 'accounts:user_list' %}">Отмена</a></div></form></div></section>
 {% endblock %}

@@ -1,20 +1,16 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Сетевые тесты — {{ project.name }}{% endblock %}
+{% block title %}Сетевые тесты · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / сетевые тесты</nav>
-<div class="d-flex justify-content-between align-items-start mb-3">
-  <div><h1 class="h3">Сетевые тесты</h1>
-  <p class="text-muted small mb-0">Реальные TCP-подключения с тестовых узлов по каждому потоку активной политики{% if active %} (v{{ active.version }}){% endif %}.
-  OPEN — соединение установлено; TIMEOUT — ответа нет (типично для запрета межсетевым экраном); CLOSED — порт закрыт. Ошибка пробы никогда не считается успехом.</p></div>
-  {% if can_run and active %}<form method="post" action="{% url 'policy:connectivity_run' project.id %}">{% csrf_token %}<button class="btn btn-primary">Проверить соединения</button></form>{% endif %}
+<div class="page-head">
+  <div><div class="crumbs"><a href="{% url 'policy:overview' project.id %}">Политика соединений</a></div><h1>Проверка соединений</h1>
+    <div class="sub">Реальные TCP-подключения с тестовых узлов по каждому потоку активной политики{% if active %} v{{ active.version }}{% endif %}. OPEN: соединение установлено. TIMEOUT: ответа нет, так обычно выглядит запрет межсетевым экраном. CLOSED: порт закрыт. Ошибка пробы никогда не считается успехом.</div></div>
+  <div class="actions">{% if can_run and active %}<form method="post" action="{% url 'policy:connectivity_run' project.id %}">{% csrf_token %}<button class="btn primary">Проверить соединения</button></form>{% endif %}</div>
 </div>
-{% if not active %}<div class="alert alert-warning">В проекте нет активной политики соединений — проверять нечего.</div>{% endif %}
-{% if selected %}
-<h2 class="h6">Проверка {{ selected.created_at|date:"d.m.Y H:i:s" }} <span class="badge text-bg-{{ selected.state|status_class }}">{{ selected.get_state_display }}</span>
-  <a class="small" href="{% url 'execution:job_detail' project.id selected.id %}">журнал задания</a></h2>
-{% include "policy/_probe_table.html" %}
-{% endif %}
-{% if jobs|length > 1 %}<h2 class="h6 mt-4">Предыдущие проверки</h2>
-<ul class="small">{% for j in jobs %}<li><a href="?job={{ j.id }}">{{ j.created_at|date:"d.m.Y H:i:s" }}</a> — {{ j.get_state_display }}</li>{% endfor %}</ul>{% endif %}
-<p class="small text-muted mt-3">Пробы до и после изменения межсетевого экрана сохраняются в плане исправлений.</p>
+{% if not active %}<div class="note warn">В проекте нет активной политики соединений, проверять нечего.</div>{% endif %}
+{% if selected %}<section class="panel"><div class="panel-head"><div class="title-line"><h2>Проверка {{ selected.created_at|date:"d.m.Y H:i:s" }}</h2><span class="st {{ selected.state|st }}">{{ selected.get_state_display }}</span></div>
+  <a class="meta" href="{% url 'execution:job_detail' project.id selected.id %}">журнал задания</a></div>
+  {% include "policy/_probe_table.html" %}</section>{% endif %}
+{% if jobs|length > 1 %}<section class="panel section-gap"><div class="panel-head"><h2>Предыдущие проверки</h2></div>
+  <table class="table"><tbody>{% for j in jobs %}<tr><td class="first"><a href="?job={{ j.id }}">{{ j.created_at|date:"d.m.Y H:i:s" }}</a></td><td class="last"><span class="st {{ j.state|st }}">{{ j.get_state_display }}</span></td></tr>{% endfor %}</tbody></table></section>{% endif %}
+<p class="limits">Пробы до и после изменения межсетевого экрана сохраняются в плане исправлений.</p>
 {% endblock %}

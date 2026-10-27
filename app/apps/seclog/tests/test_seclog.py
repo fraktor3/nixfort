@@ -65,7 +65,7 @@ def test_summary_aggregates(client_as, admin, operator, project, server, monkeyp
     assert row["auth"]["total"] == 9 and row["fail2ban"]["banned_ips"] == ["10.88.0.10"]
     assert s.data["ids"]["alerts"] == 1
     page = client_as(operator).get(reverse("seclog:seclog", args=[project.id])).content.decode()
-    assert "Неудачные входы SSH" in page and "10.88.0.10" in page and "SSH brute force" in page
+    assert "Неудачные входы по источникам" in page and "10.88.0.10" in page and "SSH brute force" in page
 
 
 def test_unreachable_server_noted(client_as, operator, project, server, monkeypatch):

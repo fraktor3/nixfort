@@ -28,7 +28,7 @@ def plan_create(request, project_id, run_id):
     key_only = request.POST.get("key_only_confirmed") == "on"
     plan = planner.create_plan(run, request.user, key_only, request=request)
     if not plan.items.exists():
-        messages.info(request, "Автоматически исправимых нарушений нет. Остальное — в списке «не покрыто».")
+        messages.info(request, "Автоматически исправимых нарушений нет. Остальные перечислены в списке «не покрыто».")
     return redirect("remediation:plan_detail", project_id=project_id, plan_id=plan.id)
 
 
@@ -49,7 +49,10 @@ def plan_detail(request, project_id, plan_id):
             "project": request.project,
             "plan": plan,
             "items": items,
+            "node_count": len({i.node_id for i in items}),
             "before_after": before_after,
+            "changed_count": sum(1 for r in before_after if r["changed"]),
+            "unchanged_count": sum(1 for r in before_after if not r["changed"]),
             "probe_matrix": probe_matrix,
             "can_approve": has_perm(request.user, Perm.APPROVE_PLAN, request.project)
             and plan.state == PlanState.DRAFT
@@ -96,7 +99,7 @@ def _before_after(plan):
             {
                 "node": r.node.name,
                 "check_id": r.check_id,
-                "before": b.status if b else "—",
+                "before": b.status if b else "–",
                 "after": r.status,
                 "changed": (b.status if b else None) != r.status,
                 "title": r.definition.title,

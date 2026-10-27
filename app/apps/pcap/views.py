@@ -29,7 +29,7 @@ def _targets(project):
             names = [n.ids_interface]
         roles = ", ".join(ROLE_LABEL[r] for r in n.roles if r in ROLE_LABEL)
         for name in names:
-            out.append({"value": f"{n.id}:{name}", "label": f"{n.name} — {name} ({roles})",
+            out.append({"value": f"{n.id}:{name}", "label": f"{n.name}, {name} ({roles})",
                         "node": n, "iface": name})  # fmt: skip
     return out
 

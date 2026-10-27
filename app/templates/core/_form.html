@@ -1,17 +1,17 @@
 {% load nx %}{% csrf_token %}
-{% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+{% if form.non_field_errors %}<div class="msg error mb-16">{% for e in form.non_field_errors %}{{ e }} {% endfor %}</div>{% endif %}
 {% for field in form %}
-  <div class="mb-3">
+  <div class="field{% if field.errors %} has-error{% endif %}">
     {% if field|widget_type == "CheckboxInput" %}
-      <div class="form-check">{{ field|add_class:"form-check-input" }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+      <label class="check">{{ field }} <span>{{ field.label }}</span></label>
     {% elif field|widget_type == "CheckboxSelectMultiple" %}
-      <label class="form-label">{{ field.label }}</label>
-      {% for cb in field %}<div class="form-check">{{ cb.tag }} <label class="form-check-label" for="{{ cb.id_for_label }}">{{ cb.choice_label }}</label></div>{% endfor %}
+      <span class="label-text">{{ field.label }}</span>
+      <div class="choices">{% for cb in field %}<label class="check" for="{{ cb.id_for_label }}">{{ cb.tag }} <span>{{ cb.choice_label }}</span></label>{% endfor %}</div>
     {% else %}
-      <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-      {% if field|widget_type == "Select" %}{{ field|add_class:"form-select" }}{% else %}{{ field|add_class:"form-control" }}{% endif %}
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {% if field.help_text %}{{ field|add_describedby }}{% else %}{{ field }}{% endif %}
     {% endif %}
-    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-    {% for e in field.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+    {% if field.help_text %}<div class="help" id="{{ field.auto_id }}_help">{{ field.help_text }}</div>{% endif %}
+    {% for e in field.errors %}<div class="err">{{ e }}</div>{% endfor %}
   </div>
 {% endfor %}

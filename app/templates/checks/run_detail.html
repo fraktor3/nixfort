@@ -1,18 +1,36 @@
 {% extends "base.html" %}{% load nx %}
+{% block title %}Аудит {{ run.created_at|date:"d.m.Y H:i" }} · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / <a href="{% url 'checks:run_list' project.id %}">аудит</a></nav>
-<div class="d-flex justify-content-between align-items-start mb-3">
-  <div><h1 class="h3">Аудит {{ run.created_at|date:"d.m.Y H:i:s" }}</h1>
-  <div class="small text-muted">каталог {{ run.catalog_version }} · политика {% if run.policy_version %}v{{ run.policy_version }}{% else %}не задана{% endif %} · {{ run.get_state_display }}</div></div>
-  {% if can_plan and total.FAIL %}<form method="post" action="{% url 'remediation:plan_create' project.id run.id %}" class="card card-body p-2">{% csrf_token %}
-    <div class="form-check small mb-1"><input class="form-check-input" type="checkbox" name="key_only_confirmed" id="ko"><label class="form-check-label" for="ko">Вход администраторов по SSH-ключу проверен — можно отключить вход по паролю (SSH-02)</label></div>
-    <button class="btn btn-primary btn-sm">Сформировать план исправлений</button></form>{% endif %}
+<div class="page-head">
+  <div><div class="crumbs"><a href="{% url 'checks:run_list' project.id %}">Аудит</a></div>
+    <div class="title-line"><h1>Аудит {{ run.created_at|date:"d.m.Y H:i:s" }}</h1><span class="st {{ run.state|st }}">{{ run.get_state_display }}</span></div>
+    <div class="sub">{% if run.purpose == "post_change" %}Повторный аудит после изменений{% else %}Исходный аудит{% endif %} · каталог {{ run.catalog_version }} · политика {% if run.policy_version %}v{{ run.policy_version }}{% else %}не задана{% endif %}{% if run.initiated_by %} · запустил {{ run.initiated_by }}{% endif %}</div></div>
 </div>
-<div class="mb-3">{% for k, v in total.items %}<span class="badge fs-6 text-bg-{{ k|status_class }} me-2">{{ k }}: {{ v }}</span>{% endfor %}</div>
-<div class="alert alert-secondary limits small">FAIL — нарушение подтверждено данными; UNKNOWN — данных недостаточно (это не «безопасно»); ERROR — данные не удалось собрать; NOT_APPLICABLE — не относится к роли узла.</div>
-<div class="table-responsive"><table class="table table-sm align-middle">
-<thead><tr><th>Проверка</th>{% for n in nodes %}<th class="text-center">{{ n.name }}</th>{% endfor %}</tr></thead><tbody>
-{% for row in rows %}<tr><td><span class="mono small">{{ row.check.id }}</span> {{ row.check.title }}</td>
-  {% for c in row.cells %}<td class="text-center">{% if c %}<a class="badge text-bg-{{ c.status|status_class }} text-decoration-none" href="{% url 'checks:result_detail' project.id run.id c.id %}" title="{{ c.explanation }}">{{ c.status }}</a>{% endif %}</td>{% endfor %}</tr>
-{% endfor %}</tbody></table></div>
+{% include "checks/_totals.html" %}
+
+{% if can_plan and total.FAIL %}
+<form method="post" action="{% url 'remediation:plan_create' project.id run.id %}" class="approve section-gap">{% csrf_token %}
+  <div class="row-flex between">
+    <label class="check mb-0"><input type="checkbox" name="key_only_confirmed" id="ko"><span>Вход администраторов по SSH-ключу проверен, вход по паролю можно отключить (SSH-02)</span></label>
+    <button class="btn primary">Сформировать план исправлений</button>
+  </div>
+</form>{% endif %}
+
+<section class="panel section-gap" aria-labelledby="h-res">
+  <div class="panel-head"><h2 id="h-res">Результаты проверок</h2><span class="meta">нажмите на результат, чтобы увидеть доказательства</span></div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th class="first">Проверка</th>{% for n in nodes %}<th class="mono">{{ n.name }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for row in rows %}
+      {% if row.group %}<tr><td colspan="{{ nodes|length|add:1 }}" class="first"><b>{{ row.group }}</b></td></tr>{% endif %}
+      <tr><td class="first"><span class="id">{{ row.check.id }}</span> {{ row.check.title }}</td>
+      {% for c in row.cells %}<td>{% if c %}{% if c.status == "NOT_APPLICABLE" %}<span class="muted small">не применимо</span>{% else %}<a class="st {{ c.status|st }}" href="{% url 'checks:result_detail' project.id run.id c.id %}" title="{{ c.explanation }}">{{ c.get_status_display }}</a>{% endif %}{% endif %}</td>{% endfor %}</tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% if hidden %}<div class="panel-foot muted">{{ hidden|join:", " }}: проверки не применяются к роли узла.</div>{% endif %}
+</section>
+<dl class="explain section-gap">
+  <dt>Нарушение</dt><dd>Несоответствие подтверждено данными с узла.</dd>
+  <dt>Нет данных</dt><dd>Данных недостаточно для вывода. Это не означает «безопасно».</dd>
+  <dt>Ошибка проверки</dt><dd>Данные не удалось собрать: узел или агент ответил ошибкой.</dd>
+</dl>
 {% endblock %}

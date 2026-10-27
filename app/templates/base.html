@@ -6,36 +6,28 @@
   <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false}'>
   <link rel="icon" href="data:,">
   <title>{% block title %}NIXFORT{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'vendor/bootstrap/bootstrap.min.css' %}">
+  <link rel="preload" href="{% static 'vendor/fonts/ibm-plex-sans-cyrillic-400-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body>
 {% if user.is_authenticated %}
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="{% url 'core:dashboard' %}">NIXFORT</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav me-auto">
-        <li class="nav-item"><a class="nav-link" href="{% url 'core:dashboard' %}">Обзор</a></li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'inventory:project_list' %}">Проекты</a></li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'core:audit_log' %}">Журнал действий</a></li>
-        {% if can_manage_users %}<li class="nav-item"><a class="nav-link" href="{% url 'accounts:user_list' %}">Пользователи</a></li>{% endif %}
-      </ul>
-      <span class="navbar-text me-3 small">{{ user.username }}</span>
-      <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="btn btn-outline-light btn-sm">Выйти</button></form>
-    </div>
+<div class="shell">
+  <aside class="side" aria-label="Навигация">{% include "core/_nav.html" %}</aside>
+  <div class="canvas">
+    <header class="topbar">
+      <a class="brand" href="{% url 'core:dashboard' %}">{% include "core/_mark.html" %}<span class="sr-only">NIXFORT</span></a>
+      <span class="here">{% if nav_project %}{{ nav_project.name }}{% else %}NIXFORT{% endif %}</span>
+      <details class="menu"><summary>Меню</summary><div class="sheet">{% include "core/_nav.html" %}</div></details>
+    </header>
+    <main class="canvas-inner">
+      {% if messages %}<div class="messages" role="status">{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}</div>{% endif %}
+      {% block content %}{% endblock %}
+    </main>
   </div>
-</nav>
+</div>
+{% else %}
+{% block public %}<main class="canvas"><div class="canvas-inner">{% block public_content %}{% endblock %}</div></main>{% endblock %}
 {% endif %}
-<main class="container-xl pb-5">
-  {% if messages %}{% for m in messages %}
-    <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-  {% endfor %}{% endif %}
-  {% block content %}{% endblock %}
-</main>
-<footer class="container-xl text-muted small py-3 border-top">NIXFORT {{ nixfort_version }} · аудит и контролируемое усиление защиты Linux-сегмента</footer>
-<script src="{% static 'vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
 <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
 </body>
 </html>

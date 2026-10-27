@@ -1,4 +1,5 @@
-<table class="table table-sm mb-0"><thead><tr><th>Уровень защиты</th><th>Ожидалось</th><th>Наблюдалось</th><th></th></tr></thead><tbody>
-{% for l in t.layers %}<tr><td>{{ l.layer }}</td><td class="small">{{ l.expected }}</td><td class="small">{{ l.observed }}</td>
-  <td>{% if l.ok %}<span class="badge text-bg-success">сработал</span>{% elif l.ok == False %}<span class="badge text-bg-danger">не сработал</span>{% else %}<span class="badge text-bg-secondary">нет данных</span>{% endif %}</td></tr>
-{% empty %}<tr><td colspan="4" class="text-muted small">{{ t.summary|default:"Нет данных." }}</td></tr>{% endfor %}</tbody></table>
+{% load nx %}<table class="table tight">
+  <tbody>{% for l in t.layers %}<tr><td class="first">{{ l.layer }}<span class="sub">{{ l.observed }}</span></td>
+    <td class="last nowrap">{% if l.ok %}<span class="st s-pass">сработал</span>{% elif l.ok == False %}<span class="st s-fail">не сработал</span>{% else %}<span class="st s-na">нет данных</span>{% endif %}</td></tr>
+  {% empty %}<tr><td class="empty">{{ t.summary|default:"Нет данных." }}</td></tr>{% endfor %}</tbody>
+</table>

@@ -1,24 +1,29 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Проверка защиты — {{ project.name }}{% endblock %}
+{% block title %}Проверка защиты · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / проверка защиты</nav>
-<h1 class="h3">Проверка защиты</h1>
-<p class="text-muted small">Имитация атак с тестового клиента по стенду и проверка, какой уровень защиты сработал. Уровень засчитывается только по наблюдаемому факту: соединение не установлено, адрес в списке блокировки Fail2ban, событие Suricata от адреса атакующего. Нагрузочные атаки (DDoS) не выполняются.</p>
-<div class="row g-3">
-{% for s, t in scenarios %}<div class="col-lg-4"><div class="card h-100"><div class="card-header d-flex justify-content-between align-items-center"><b>{{ s.label }}</b>
-  {% if t %}<span class="badge text-bg-{% if t.verdict == 'PROTECTED' %}success{% elif t.verdict == 'PARTIAL' %}warning{% elif t.verdict == 'NOT_PROTECTED' %}danger{% else %}secondary{% endif %}">{{ t.get_verdict_display }}</span>{% endif %}</div>
-  <div class="card-body small">
-  {% if s.value == "IDS_MARKER" %}<p>Клиент открывает разрешённое соединение и передаёт строку <span class="mono">NIXFORT-IDS-TEST-7f3a</span>. Ожидается событие Suricata на шлюзе.</p>
-  {% elif s.value == "PORT_SCAN" %}<p>Клиент проверяет 40 TCP-портов сервера через шлюз. Ожидается: открыты только разрешённые политикой порты; Suricata фиксирует сканирование.</p>
-  {% elif s.value == "LOAD" %}<p>Короткий поток соединений с клиента: на разрешённый сервис (должен остаться доступен) и на запрещённый порт (межсетевой экран должен поглотить нагрузку). Suricata фиксирует всплеск. Нагрузка ограничена по числу соединений и времени — это проверка устойчивости, не атака на отказ.</p>
-  {% else %}<p>A — 6 попыток входа на сервер через шлюз (SSH из сети пользователей запрещён политикой). B — 7 попыток напрямую в сети управления, где шлюза нет. Ожидается: экран не пропускает A, Suricata фиксирует A, Fail2ban блокирует B на время bantime. Пароли не передаются.</p>{% endif %}
-  {% if t %}<div class="text-muted mb-1">{{ t.created_at|date:"d.m.Y H:i:s" }} · <a href="{% url 'ids:protection_detail' project.id t.id %}">подробно</a></div>{% include "ids/_layers.html" %}{% endif %}
+<div class="page-head"><div><h1>Проверка защиты</h1>
+  <div class="sub">Имитация атак с тестового клиента и ответ на вопрос, какой уровень защиты их остановил. Уровень засчитывается только по наблюдаемому факту: соединение не установлено, адрес в списке блокировки, событие Suricata от адреса атакующего.</div></div></div>
+
+<section class="panel">
+{% for s, t in scenarios %}<div class="scenario">
+  <div class="sc-about">
+    <div class="title-line"><h2>{{ s.label }}</h2>{% if t %}<span class="st {{ t.verdict|st }}">{{ t.get_verdict_display }}</span>{% endif %}</div>
+    <p class="explain mt-8">
+    {% if s.value == "IDS_MARKER" %}Клиент открывает разрешённое соединение и передаёт строку <span class="mono">NIXFORT-IDS-TEST-7f3a</span>. Ожидается событие Suricata на шлюзе.
+    {% elif s.value == "PORT_SCAN" %}Клиент проверяет 40 TCP-портов сервера через шлюз. Ожидается: открыты только разрешённые политикой порты, Suricata фиксирует сканирование.
+    {% elif s.value == "LOAD" %}Короткий поток соединений на разрешённый сервис и на запрещённый порт; шлюз записывает трафик на всё время проверки. Нагрузка ограничена по числу соединений и времени: это проверка устойчивости, а не атака на отказ.
+    {% else %}Шесть попыток входа на сервер через шлюз и семь напрямую в сети управления. Ожидается: экран шлюза не пропускает первые, Suricata их фиксирует, а напрямую сервер защищает хостовый экран или Fail2ban. Пароли не передаются.{% endif %}</p>
+    <div class="row-flex">
+    {% if s.value == "IDS_MARKER" and can_marker or s.value != "IDS_MARKER" and can_attack %}
+      <form method="post" action="{% url 'ids:protection_run' project.id s.value %}">{% csrf_token %}<button class="btn sm">Запустить</button></form>
+    {% else %}<span class="small muted">{% if s.value == "IDS_MARKER" %}Запуск доступен оператору и администратору{% else %}Запуск доступен только администратору{% endif %}</span>{% endif %}
+    {% if t %}<span class="small muted">последний запуск {{ t.created_at|date:"d.m.Y H:i" }} · <a href="{% url 'ids:protection_detail' project.id t.id %}">подробно</a></span>{% endif %}</div>
   </div>
-  <div class="card-footer">{% if s.value == "IDS_MARKER" and can_marker or s.value != "IDS_MARKER" and can_attack %}
-    <form method="post" action="{% url 'ids:protection_run' project.id s.value %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">Запустить</button></form>
-  {% else %}<span class="text-muted small">{% if s.value == "IDS_MARKER" %}нужна роль оператора{% else %}только администратор{% endif %}</span>{% endif %}</div>
-</div></div>{% endfor %}
-</div>
-{% if history %}<h2 class="h6 mt-4">История</h2>
-<ul class="small">{% for t in history %}<li><a href="{% url 'ids:protection_detail' project.id t.id %}">{{ t.created_at|date:"d.m.Y H:i:s" }}</a> — {{ t.get_scenario_display }}: {{ t.get_verdict_display }}</li>{% endfor %}</ul>{% endif %}
+  <div class="sc-result">{% if t %}{% include "ids/_layers.html" %}{% else %}<div class="empty">Ещё не запускался.</div>{% endif %}</div>
+</div>{% endfor %}
+</section>
+
+{% if history %}<section class="panel section-gap" aria-labelledby="h-hist"><div class="panel-head"><h2 id="h-hist">История запусков</h2></div>
+  <div class="table-wrap"><table class="table"><thead><tr><th class="first">Запуск</th><th>Сценарий</th><th class="last">Итог</th></tr></thead>
+  <tbody>{% for t in history %}<tr><td class="first"><a href="{% url 'ids:protection_detail' project.id t.id %}">{{ t.created_at|date:"d.m.Y H:i:s" }}</a></td><td>{{ t.get_scenario_display }}</td><td class="last"><span class="st {{ t.verdict|st }}">{{ t.get_verdict_display }}</span></td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
 {% endblock %}

@@ -1,22 +1,24 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Отчёты — {{ project.name }}{% endblock %}
+{% block title %}Отчёты · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / отчёты</nav>
-<h1 class="h3">Отчёты о защищённости</h1>
-<p class="text-muted small">Отчёт фиксирует состояние «до», выполненные изменения, состояние «после», доказательства, остаточные риски и ограничения. После создания отчёт не меняется; HTML, PDF и JSON строятся из одних данных, у которых записан SHA-256.</p>
+<div class="page-head"><div><h1>Отчёты о защищённости</h1>
+  <div class="sub">Отчёт фиксирует состояние до изменений, выполненные изменения, состояние после, доказательства, остаточные риски и ограничения выводов. После создания отчёт не меняется: HTML, PDF и JSON строятся из одних данных, у которых записан SHA-256.</div></div></div>
 {% if can_create %}{% if runs %}
-<form method="post" action="{% url 'reports:create' project.id %}" class="card card-body mb-4">{% csrf_token %}
-  <div class="row g-2 align-items-end">
-    <div class="col-md-5"><label class="form-label small">Аудит «до»</label><select class="form-select" name="before">
-      {% for r in runs %}<option value="{{ r.id }}" {% if r.id == default_before %}selected{% endif %}>{{ r.created_at|date:"d.m.Y H:i" }} · {% if r.purpose == "post_change" %}после изменений{% else %}аудит{% endif %} · FAIL {{ r.summary.total.FAIL|default:0 }}</option>{% endfor %}</select></div>
-    <div class="col-md-5"><label class="form-label small">Аудит «после»</label><select class="form-select" name="after">
-      {% for r in runs %}<option value="{{ r.id }}" {% if r.id == default_after %}selected{% endif %}>{{ r.created_at|date:"d.m.Y H:i" }} · {% if r.purpose == "post_change" %}после изменений{% else %}аудит{% endif %} · FAIL {{ r.summary.total.FAIL|default:0 }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><button class="btn btn-primary w-100">Сформировать</button></div>
+<section class="panel"><div class="panel-head"><h2>Новый отчёт</h2><span class="meta">в отчёт попадут планы, утверждённые между выбранными аудитами</span></div>
+<form method="post" action="{% url 'reports:create' project.id %}" class="panel-body">{% csrf_token %}
+  <div class="toolbar">
+    <div class="field"><label for="rb">Аудит «до»</label><select id="rb" name="before">
+      {% for r in runs %}<option value="{{ r.id }}" {% if r.id == default_before %}selected{% endif %}>{{ r.created_at|date:"d.m.Y H:i" }} · {% if r.purpose == "post_change" %}после изменений{% else %}исходный{% endif %} · нарушений {{ r.summary.total.FAIL|default:0 }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="ra">Аудит «после»</label><select id="ra" name="after">
+      {% for r in runs %}<option value="{{ r.id }}" {% if r.id == default_after %}selected{% endif %}>{{ r.created_at|date:"d.m.Y H:i" }} · {% if r.purpose == "post_change" %}после изменений{% else %}исходный{% endif %} · нарушений {{ r.summary.total.FAIL|default:0 }}</option>{% endfor %}</select></div>
+    <button class="btn primary">Сформировать отчёт</button>
   </div>
-  <div class="form-text">По умолчанию: самый первый аудит проекта и самый последний. В отчёт попадут планы, утверждённые между ними.</div>
-</form>{% else %}<div class="alert alert-warning">Сначала выполните аудит.</div>{% endif %}{% endif %}
-<table class="table"><thead><tr><th>Создан</th><th>Кем</th><th>«До» → «после»</th><th>SHA-256</th></tr></thead><tbody>
-{% for r in reports %}<tr><td><a href="{% url 'reports:detail' project.id r.id %}">{{ r.created_at|date:"d.m.Y H:i" }}</a></td><td>{{ r.generated_by|default:"—" }}</td>
-  <td class="small">{{ r.before_run.created_at|date:"d.m H:i" }} → {{ r.after_run.created_at|date:"d.m H:i" }}</td><td class="mono small">{{ r.sha256|slice:":16" }}…</td></tr>
-{% empty %}<tr><td colspan="4" class="text-muted">Отчётов нет.</td></tr>{% endfor %}</tbody></table>
+</form></section>{% else %}<div class="note warn">Сначала выполните аудит: отчёт сравнивает два аудита.</div>{% endif %}{% endif %}
+<section class="panel section-gap"><div class="panel-head"><h2>Сформированные отчёты</h2><span class="meta">{{ reports|length }}</span></div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th class="first">Отчёт</th><th>Сформировал</th><th>Аудиты «до» и «после»</th><th class="last">SHA-256 данных</th></tr></thead>
+    <tbody>{% for r in reports %}<tr><td class="first"><a href="{% url 'reports:detail' project.id r.id %}">{{ r.created_at|date:"d.m.Y H:i" }}</a></td><td>{{ r.generated_by|default:"–" }}</td>
+      <td>{{ r.before_run.created_at|date:"d.m H:i" }} → {{ r.after_run.created_at|date:"d.m H:i" }}</td><td class="last mono">{{ r.sha256|slice:":16" }}…</td></tr>
+    {% empty %}<tr><td colspan="4" class="empty">Отчётов нет.</td></tr>{% endfor %}</tbody>
+  </table></div></section>
 {% endblock %}

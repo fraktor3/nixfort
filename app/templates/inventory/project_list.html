@@ -1,10 +1,14 @@
 {% extends "base.html" %}{% load nx %}
+{% block title %}Проекты · NIXFORT{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between mb-3"><h1 class="h3">Проекты</h1>
-  {% if can_create_project %}<a class="btn btn-primary" href="{% url 'inventory:project_create' %}">Новый проект</a>{% endif %}</div>
-<table class="table"><thead><tr><th>Название</th><th>Подсети</th><th>Статус</th></tr></thead><tbody>
-{% for p in projects %}<tr><td><a href="{% url 'inventory:project_detail' p.id %}">{{ p.name }}</a></td>
-  <td class="mono">{{ p.cidrs|join:", " }}</td><td><span class="badge text-bg-{{ p.status|status_class }}">{{ p.get_status_display }}</span></td></tr>
-{% empty %}<tr><td colspan="3" class="text-muted">Нет доступных проектов.</td></tr>{% endfor %}
-</tbody></table>
+<div class="page-head">
+  <div><h1>Проекты</h1><div class="sub">Проект описывает один сегмент сети: подсети, контроллер и узлы, которыми управляет NIXFORT.</div></div>
+  <div class="actions">{% if can_create_project %}<a class="btn primary" href="{% url 'inventory:project_create' %}">Новый проект</a>{% endif %}</div>
+</div>
+<section class="panel"><div class="table-wrap"><table class="table">
+  <thead><tr><th class="first">Название</th><th>Подсети</th><th>Контроллер</th><th class="last">Состояние</th></tr></thead>
+  <tbody>{% for p in projects %}<tr><td class="first"><a href="{% url 'inventory:project_detail' p.id %}">{{ p.name }}</a>{% if p.description %}<span class="sub">{{ p.description|truncatechars:90 }}</span>{% endif %}</td>
+    <td class="mono">{{ p.cidrs|join:", " }}</td><td class="mono">{{ p.controller_ip }}</td><td class="last"><span class="st {{ p.status|st }}">{{ p.get_status_display }}</span></td></tr>
+  {% empty %}<tr><td colspan="4" class="empty">Нет доступных проектов.</td></tr>{% endfor %}</tbody>
+</table></div></section>
 {% endblock %}

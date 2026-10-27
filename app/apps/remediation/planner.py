@@ -101,7 +101,7 @@ def _nft_drafts(run: AuditRun, node, ids: set[str], packages: dict, facts: dict)
         or conflict.get("foreign_base_chains")
     )
     if conflicting:
-        why = "Другой менеджер правил (UFW, firewalld, Docker или чужие цепочки) — устраняется вручную"
+        why = "Другой менеджер правил (UFW, firewalld, Docker или чужие цепочки) устраняется вручную"
         return [], [miss(c, why) for c in sorted(ids & {"FW-01", "FW-02", "FW-03", "FW-04"})]
     policy = FlowPolicyVersion.objects.filter(project=node.project, status="ACTIVE").first()
     if policy is None:
@@ -126,13 +126,13 @@ def _nft_drafts(run: AuditRun, node, ids: set[str], packages: dict, facts: dict)
         return [], [miss(c, "Слишком много разрешающих потоков для одного шлюза") for c in fw]
     flows = list(policy.flows.all())
     if any(f.action == "ALLOW" and f.critical and f.probe_from_id is None for f in flows):
-        why = "У критичного разрешающего потока не задан тестовый узел — сохранность доступа нельзя проверить"
+        why = "У критичного разрешающего потока не задан тестовый узел: сохранность доступа нельзя проверить"
         return [], [miss(c, why) for c in fw]
     unprobed = sum(1 for f in flows if f.probe_from_id is None)
     allowed = len(params["forward_allow"]) + len(params["input_allow"])
     desc = (
         f"Межсетевой экран по политике v{policy.version}: разрешить {allowed} поток(ов), остальной транзит "
-        f"запрещён; SSH к шлюзу — только с {', '.join(params['management_sources'])}. "
+        f"запрещён; SSH к шлюзу только с {', '.join(params['management_sources'])}. "
         f"Проверка пробами до/после ({len(flows) - unprobed} из {len(flows)} потоков)"
     )
     drafts.append(Draft(node, 4, fw or ["FW-02"], "nft.apply_policy.v1", params, "HIGH", True, desc[:300]))
@@ -199,7 +199,7 @@ def _hostfw_drafts(node, ids: set[str], packages: dict) -> tuple[list[Draft], li
         "rollback_timeout_s": settings.NIXFORT_ROLLBACK_TIMEOUT_S,
     }
     desc = (
-        f"Хостовый межсетевой экран сервера: открыты порты {allow_ports or '—'} и SSH с "
+        f"Хостовый межсетевой экран сервера: открыты порты {allow_ports or 'нет'} и SSH с "
         f"{', '.join(params['management_sources'])}, остальной входящий трафик запрещён"
     )
     drafts.append(Draft(node, 5, ["HFW-01"], "nft.apply_host_firewall.v1", params, "HIGH", True, desc[:300]))
@@ -287,7 +287,7 @@ def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[di
                 {
                     "node": node.name,
                     "check_id": "SSH-07",
-                    "reason": "Конфигурация sshd некорректна — изменения SSH заблокированы до ручного исправления",
+                    "reason": "Конфигурация sshd некорректна, изменения SSH заблокированы до ручного исправления",
                 }
             )
 
@@ -304,9 +304,9 @@ def build(run: AuditRun, key_only_confirmed: bool) -> tuple[list[Draft], list[di
         covered = {c for d in drafts if d.node == node for c in d.check_ids}
         for cid in sorted(ids - covered):
             reason = {
-                "SYS-01": "ОС не поддерживается — только рекомендация",
-                "SYS-02": "Синхронизация времени — только рекомендация",
-                "SYS-03": "Системный журнал — только рекомендация",
+                "SYS-01": "ОС не поддерживается: только рекомендация",
+                "SYS-02": "Синхронизация времени: только рекомендация",
+                "SYS-03": "Системный журнал: только рекомендация",
                 "SYS-04": "Лишние службы отключаются вручную (или запрещаются политикой на шлюзе)",
             }.get(cid, "Автоматического исправления нет")
             if not any(n["node"] == node.name and n["check_id"] == cid for n in not_covered):

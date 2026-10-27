@@ -14,7 +14,7 @@ class UserCreateForm(forms.Form):
     password2 = forms.CharField(label="Пароль ещё раз", widget=forms.PasswordInput, strip=False)
     role = forms.ChoiceField(label="Роль", choices=Role.choices)
     project = forms.ModelChoiceField(
-        label="Проект (пусто — роль на все проекты)", queryset=Project.objects.all(), required=False
+        label="Проект (если не выбран, роль действует во всех проектах)", queryset=Project.objects.all(), required=False
     )
 
     def clean_username(self):
@@ -38,4 +38,6 @@ class UserCreateForm(forms.Form):
 
 class RoleAssignForm(forms.Form):
     role = forms.ChoiceField(label="Роль", choices=Role.choices)
-    project = forms.ModelChoiceField(label="Проект (пусто — глобально)", queryset=Project.objects.all(), required=False)
+    project = forms.ModelChoiceField(
+        label="Проект (если не выбран, во всех проектах)", queryset=Project.objects.all(), required=False
+    )

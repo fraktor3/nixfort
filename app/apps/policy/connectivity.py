@@ -72,7 +72,7 @@ def evaluate(flow: Flow, result: str, baseline: str | None) -> tuple[str, str]:
     if result == "NOT_RUN":
         return V.NOT_CHECKED, ""
     if result == "ERROR":
-        return V.UNPROVABLE, "ошибка пробы — результат не засчитывается"
+        return V.UNPROVABLE, "ошибка пробы, результат не засчитывается"
     if flow.action == Flow.Action.ALLOW:
         if result == "OPEN":
             return V.OK, "соединение работает"
@@ -165,7 +165,7 @@ def check_now(job, log: Callable[[str, str], None], client_factory=None) -> tupl
     summary: dict[str, int] = {}
     for r in rows:
         summary[r.verdict] = summary.get(r.verdict, 0) + 1
-        log(f"{r.action} {r.src_cidr} → {r.dst_ip}:{r.port}: {r.result} — {r.get_verdict_display()}", "INFO")
+        log(f"{r.action} {r.src_cidr} → {r.dst_ip}:{r.port}: {r.result}, {r.get_verdict_display()}", "INFO")
     state = JobState.SUCCEEDED if rows and summary.get(V.OK, 0) == len(rows) else JobState.PARTIAL
     if not any(r.result in {"OPEN", *BLOCKED} for r in rows):
         state = JobState.FAILED

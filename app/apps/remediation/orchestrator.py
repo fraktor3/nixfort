@@ -244,7 +244,7 @@ def _precheck_nft(item: RemediationItem, env: dict) -> None:
     active = FlowPolicyVersion.objects.filter(project=item.plan.project_id, status="ACTIVE").first()
     if active is None or active.version != item.params["policy_version"]:
         raise ItemOutcome(
-            ItemState.FAILED, "активная политика изменилась после составления плана — составьте план заново"
+            ItemState.FAILED, "активная политика изменилась после составления плана, составьте план заново"
         )
     rows = _nft_probe(item, env, "BASELINE")
     item.result = {**item.result, "baseline": {str(r.flow_id): r.result for r in rows}}
@@ -268,20 +268,20 @@ def run_item(job: Job, item: RemediationItem, log: Callable[[str, str], None], c
         client = client_factory(node)
         pre = client.call("system.ping.v1")
         if not pre.ok:
-            raise ItemOutcome(ItemState.FAILED, f"узел недоступен до изменения ({pre.error_code}) — ничего не менялось")
+            raise ItemOutcome(ItemState.FAILED, f"узел недоступен до изменения ({pre.error_code}), ничего не менялось")
         if pre.os_profile not in ("ubuntu-24.04", "astra-1.8"):
-            raise ItemOutcome(ItemState.FAILED, f"ОС не поддерживается ({pre.os_profile}) — изменения запрещены")
+            raise ItemOutcome(ItemState.FAILED, f"ОС не поддерживается ({pre.os_profile}), изменения запрещены")
 
         env = {"job": job, "client_factory": client_factory, "log": log}
         if item.action_id == "nft.apply_policy.v1":
             log(f"{node.name}: пробы соединений до изменения", "INFO")
             _precheck_nft(item, env)
         _save(item, ItemState.APPLYING)
-        log(f"{node.name}: {item.action_id} — применение", "INFO")
+        log(f"{node.name}: {item.action_id}: применение", "INFO")
         resp = client.call(item.action_id, item.params, deadline_s=DEADLINES.get(item.action_id.split(".")[0], 120))
         if resp.state in ("FAILED", "REJECTED"):
             why = AGENT_REFUSALS.get(resp.error_code or "", f"{resp.state} {resp.error_code}")
-            raise ItemOutcome(ItemState.FAILED, f"изменение не применено: {why} — исходная конфигурация на месте")
+            raise ItemOutcome(ItemState.FAILED, f"изменение не применено: {why}; исходная конфигурация на месте")
         if resp.state != "OK":
             # transport/protocol error during a mutation: we do not know what happened on the node
             return _recover_unknown(item, resp, log, client_factory, sleep, env=env)
@@ -291,7 +291,7 @@ def run_item(job: Job, item: RemediationItem, log: Callable[[str, str], None], c
 
         verify_client = client_factory(node)  # fresh client: every call is a new SSH connection
         ok, why, evidence = VERIFY[item.action_id](verify_client, item, env)
-        log(f"{node.name}: постпроверка — {'OK' if ok else 'НЕ ПРОЙДЕНА'}: {why}", "INFO" if ok else "WARN")
+        log(f"{node.name}: постпроверка: {'OK' if ok else 'НЕ ПРОЙДЕНА'}: {why}", "INFO" if ok else "WARN")
         if not item.reversible:
             if ok:
                 _save(item, ItemState.VERIFIED, verify=why, evidence=evidence)
@@ -304,7 +304,7 @@ def run_item(job: Job, item: RemediationItem, log: Callable[[str, str], None], c
                 return ItemState.VERIFIED
             if c.ok and c.result.get("rolled_back"):
                 raise ItemOutcome(
-                    ItemState.ROLLED_BACK, "таймер отката сработал раньше подтверждения — изменение отменено узлом"
+                    ItemState.ROLLED_BACK, "таймер отката сработал раньше подтверждения, изменение отменено узлом"
                 )
             return _recover_unknown(item, c, log, client_factory, sleep, env=env)
         # verification failed -> roll back now, then prove the rollback
@@ -316,7 +316,7 @@ def _rolled_back(item, why: str, rollback: dict, env: dict | None, message: str)
     proven, note = _after_rollback(item, env) if env else (True, "")
     if not proven:
         _save(item, ItemState.UNKNOWN, reason=why, rollback=rollback, after_rollback=note)
-        raise ItemOutcome(ItemState.UNKNOWN, f"{message}; {note} — требуется ручная проверка")
+        raise ItemOutcome(ItemState.UNKNOWN, f"{message}; {note}; требуется ручная проверка")
     _save(item, ItemState.ROLLED_BACK, reason=why, rollback=rollback, after_rollback=note)
     raise ItemOutcome(ItemState.ROLLED_BACK, f"{message}" + (f"; {note}" if note else ""))
 
@@ -340,7 +340,7 @@ def _recover_unknown(item, resp, log, client_factory, sleep, reason: str = "", e
             if resp.state == "ERROR"
             else f"связь потеряна во время изменения ({resp.error_code})"
         )
-        raise ItemOutcome(ItemState.UNKNOWN, f"{what}; состояние узла не подтверждено — проверьте узел вручную")
+        raise ItemOutcome(ItemState.UNKNOWN, f"{what}; состояние узла не подтверждено, проверьте узел вручную")
     wait = int(item.params.get("rollback_timeout_s", settings.NIXFORT_ROLLBACK_TIMEOUT_S)) + 30
     log(f"{item.node.name}: нет связи ({resp.error_code}); ожидание автоотката на узле {wait} с", "WARN")
     sleep(wait)
@@ -358,7 +358,7 @@ def _recover_unknown(item, resp, log, client_factory, sleep, reason: str = "", e
         )
     raise ItemOutcome(
         ItemState.UNKNOWN,
-        "откат не подтверждён — требуется ручная проверка узла "
+        "откат не подтверждён, требуется ручная проверка узла "
         "(см. docs/LAB_SETUP.md: консоль VirtualBox, /var/lib/nixfort/snapshots)",
     )
 
@@ -373,7 +373,7 @@ def execute(
     plan = RemediationPlan.objects.select_related("project").get(id=job.params["plan_id"], project=job.project)
     items = list(plan.items.select_related("node", "node__project", "node__hostkey"))
     if plan.state != PlanState.APPROVED or plan.plan_hash != plan_hash(items):
-        log("План изменён после утверждения или не утверждён — выполнение запрещено", "ERROR")
+        log("План изменён после утверждения или не утверждён, выполнение запрещено", "ERROR")
         return JobState.FAILED, {"error": "plan_not_approved_or_modified"}
     plan.state = PlanState.EXECUTING
     plan.job = job
@@ -390,7 +390,7 @@ def execute(
         except ItemOutcome as o:
             state = o.state
             _save(item, o.state, reason=o.reason)
-            log(f"{item.node.name}: {item.action_id} — {o.reason}", "ERROR" if o.state == ItemState.UNKNOWN else "WARN")
+            log(f"{item.node.name}: {item.action_id}: {o.reason}", "ERROR" if o.state == ItemState.UNKNOWN else "WARN")
         except jobs.NodeBusy:
             state = ItemState.FAILED
             _save(item, state, reason="на узле уже выполняется другое изменение")

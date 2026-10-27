@@ -1,2 +1,5 @@
 {% extends "base.html" %}
-{% block content %}<div class="alert alert-danger mt-5">Слишком много неудачных попыток входа. Вход временно заблокирован на 15 минут.</div>{% endblock %}
+{% block title %}Вход заблокирован · NIXFORT{% endblock %}
+{% block content %}<div class="note bad">Слишком много неудачных попыток входа. Вход под этим логином с вашего адреса заблокирован на 15 минут.</div>{% endblock %}
+{% block public_content %}<p class="mb-16"><a class="brand" href="{% url 'accounts:login' %}">{% include "core/_mark.html" %}NIXFORT</a></p>
+<div class="note bad">Слишком много неудачных попыток входа. Вход под этим логином с вашего адреса заблокирован на 15 минут.</div>{% endblock %}

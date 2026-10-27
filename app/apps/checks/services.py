@@ -92,7 +92,7 @@ def run_audit(job, purpose: str = "baseline", node_ids: list[str] | None = None,
         if node.confirmed_hostkey is None:
             snap = None
             if log:
-                log(f"{node.name}: ключ не подтверждён — проверки получат статус «нет данных»", "WARN")
+                log(f"{node.name}: ключ не подтверждён, проверки получат статус «нет данных»", "WARN")
         else:
             snap = collector.collect_node(node, job, log=log)
         c = evaluate_node(run, node, snap, policy.version if policy else None)

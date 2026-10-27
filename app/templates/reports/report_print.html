@@ -1,14 +1,24 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>{{ report.title }}</title>
+{% load nx %}<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>{{ report.title }}</title>
 <style>
-@page { size: A4; margin: 16mm 14mm 18mm 14mm; @bottom-right { content: "стр. " counter(page) " из " counter(pages); font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #666; } X }
-body { font-family: "DejaVu Sans", sans-serif; font-size: 9pt; color: #111; }
-h1 { font-size: 16pt; margin: 0 0 4pt; } h2 { font-size: 12pt; margin: 14pt 0 4pt; border-bottom: 1px solid #999; page-break-after: avoid; } h3 { font-size: 10pt; margin: 8pt 0 3pt; }
-table { width: 100%; border-collapse: collapse; margin: 4pt 0 8pt; page-break-inside: auto; } th, td { border: 1px solid #bbb; padding: 2pt 4pt; vertical-align: top; text-align: left; } th { background: #eee; } tr { page-break-inside: avoid; }
-.mono { font-family: "DejaVu Sans Mono", monospace; font-size: 8pt; } .small, .text-muted { color: #555; font-size: 8pt; }
-.badge { padding: 0 3pt; border-radius: 2pt; font-weight: bold; } .text-bg-success { background: #cfe9d6; } .text-bg-danger { background: #f6cccc; } .text-bg-warning { background: #fbe7b5; } .text-bg-secondary { background: #e3e3e3; } .text-bg-light { background: #f4f4f4; }
-.table-active { background: #fff8d8; } .alert { border: 1px solid #ccc; padding: 4pt 6pt; background: #fafafa; }
+@page { size: A4; margin: 16mm 14mm 18mm 14mm; @bottom-right { content: "стр. " counter(page) " из " counter(pages); font-family: "DejaVu Sans", sans-serif; font-size: 7.5pt; color: #545b62; } @bottom-left { content: "NIXFORT · {{ report.sha256|slice:':16' }}"; font-family: "DejaVu Sans Mono", monospace; font-size: 7pt; color: #545b62; } }
+body { font-family: "DejaVu Sans", sans-serif; font-size: 8.6pt; line-height: 1.38; color: #121518; }
+h1 { font-size: 15pt; margin: 0 0 3pt; font-weight: bold; } h2 { font-size: 11.5pt; margin: 14pt 0 5pt; padding-bottom: 2pt; border-bottom: 1.2pt solid #121518; page-break-after: avoid; } h3 { font-size: 9.6pt; margin: 9pt 0 3pt; page-break-after: avoid; }
+p { margin: 0 0 5pt; }
+table { width: 100%; border-collapse: collapse; margin: 3pt 0 7pt; page-break-inside: auto; }
+th { text-align: left; font-weight: normal; color: #545b62; font-size: 7.6pt; padding: 3pt 4pt; border-bottom: 0.8pt solid #9aa1a8; }
+td { padding: 3pt 4pt; border-bottom: 0.4pt solid #d9dee3; vertical-align: top; } tr { page-break-inside: avoid; }
+.num { text-align: right; } .nowrap { white-space: nowrap; }
+.mono, .id { font-family: "DejaVu Sans Mono", monospace; font-size: 7.6pt; } .id { color: #545b62; }
+.small, .muted, .sub { color: #545b62; font-size: 7.6pt; } .sub { display: block; }
+.st:before { content: ""; display: inline-block; width: 5.5pt; height: 5.5pt; margin-right: 3pt; background: #8d949b; }
+.s-pass:before { background: #2a7343; } .s-fail:before { background: #b8262c; } .s-unknown:before { background: #9a6411; } .s-error:before { background: #fff; border: 1.2pt solid #7c1b20; width: 3pt; height: 3pt; } .s-na:before, .s-off:before { background: #fff; border: 0.6pt solid #8d949b; width: 4.3pt; height: 4.3pt; } .s-run:before { background: #1d5fbf; }
+.tag { font-size: 7pt; padding: 0 2pt; border: 0.5pt solid #9aa1a8; }
+tr.changed td { background: #eef1f4; }
+.figures { display: table; width: 100%; border: 0.6pt solid #9aa1a8; margin: 6pt 0; } .figures > div { display: table-cell; padding: 4pt 6pt; border-left: 0.4pt solid #d9dee3; } .figures > div:first-child { border-left: 0; }
+.figures .label { font-size: 7.4pt; color: #545b62; } .figures .value { font-size: 13pt; } .figures small { font-size: 7.4pt; color: #545b62; }
+.panel, .table-wrap { margin: 0; }
 </style></head><body>
 <h1>{{ report.title }}</h1>
-<div class="small">SHA-256 данных: <span class="mono">{{ report.sha256 }}</span></div>
+<div class="small">Сформирован {{ d.generated_at|isodt }} · {{ d.generated_by|default:"–" }} · SHA-256 данных <span class="mono">{{ report.sha256 }}</span></div>
 {% include "reports/_document.html" %}
 </body></html>

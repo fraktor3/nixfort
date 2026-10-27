@@ -1,1 +1,3 @@
-{% extends "base.html" %}{% block content %}<h1 class="h3">Доступ запрещён</h1><p>У вашей роли нет прав на это действие. Попытка записана в журнал.</p>{% endblock %}
+{% extends "base.html" %}{% block title %}Доступ запрещён · NIXFORT{% endblock %}
+{% block content %}<div class="page-head"><div><h1>Доступ запрещён</h1><div class="sub">У вашей роли нет прав на это действие. Попытка записана в журнал действий.</div></div></div>{% endblock %}
+{% block public_content %}<h1>Доступ запрещён</h1><p class="muted">Войдите под учётной записью с нужной ролью.</p>{% endblock %}

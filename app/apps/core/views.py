@@ -22,11 +22,20 @@ def healthz(request):
 
 
 def dashboard(request):
+    from apps.checks.models import AuditRun
     from apps.execution.models import Job
 
-    projects = visible_projects(request.user).order_by("name")
-    jobs = Job.objects.filter(project__in=projects).select_related("project").order_by("-created_at")[:10]
-    return render(request, "core/dashboard.html", {"projects": projects, "jobs": jobs})
+    projects = list(visible_projects(request.user).order_by("status", "name"))
+    rows = []
+    for p in projects:
+        run = AuditRun.objects.filter(project=p, state="DONE").order_by("-created_at").first()
+        last = Job.objects.filter(project=p).order_by("-created_at").first()
+        total = (run.summary.get("total") or {}) if run else {}
+        rows.append({"p": p, "nodes": p.nodes.filter(is_active=True).count(), "run": run,
+                     "fail": total.get("FAIL", 0), "pass": total.get("PASS", 0), "last": last,
+                     "drafts": p.plans.filter(state="DRAFT").count()})  # fmt: skip
+    jobs = Job.objects.filter(project__in=projects).select_related("project", "node").order_by("-created_at")[:10]
+    return render(request, "core/dashboard.html", {"rows": rows, "projects": projects, "jobs": jobs})
 
 
 def audit_log(request):
@@ -46,3 +55,13 @@ def audit_log(request):
         "core/audit_log.html",
         {"page": page, "actions": Action.choices, "sel_action": action, "actor": actor},
     )
+
+
+@login_not_required
+def terms(request):
+    return render(request, "core/terms.html")
+
+
+@login_not_required
+def privacy(request):
+    return render(request, "core/privacy.html")

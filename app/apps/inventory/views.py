@@ -43,21 +43,46 @@ def project_create(request):
 
 @perm_required(Perm.VIEW_PROJECT)
 def project_detail(request, project_id):
-    project = request.project
-    nodes = project.nodes.filter(is_active=True).select_related("hostkey")
-    from apps.policy.models import FlowPolicyVersion
-
-    active_policy = FlowPolicyVersion.objects.filter(project=project, status=FlowPolicyVersion.Status.ACTIVE).first()
+    from apps.checks.models import AuditRun
     from apps.execution.models import Job
+    from apps.ids.models import ProtectionTest
+    from apps.policy.models import FlowPolicyVersion
+    from apps.reports.models import Report
+    from apps.seclog.models import SecuritySummary
 
-    jobs = Job.objects.filter(project=project).order_by("-created_at")[:10]
+    from . import overview
+
+    project = request.project
+    nodes = list(project.nodes.filter(is_active=True).select_related("hostkey").order_by("name"))
+    active_policy = FlowPolicyVersion.objects.filter(project=project, status=FlowPolicyVersion.Status.ACTIVE).first()
+    jobs = Job.objects.filter(project=project).select_related("node").order_by("-created_at")[:8]
+    runs = list(AuditRun.objects.filter(project=project, state="DONE").order_by("-created_at"))
+    plans = list(project.plans.order_by("-created_at")[:1])
+    latest_tests = {}
+    for t in ProtectionTest.objects.filter(project=project).order_by("-created_at")[:40]:
+        latest_tests.setdefault(t.scenario, t)
+    protection = list(latest_tests.values())
+    summary = SecuritySummary.objects.filter(project=project, state="DONE").order_by("-created_at").first()
+    report = Report.objects.filter(project=project).order_by("-created_at").first()
+    latest, first = (runs[0], runs[-1]) if runs else (None, None)
+    steps = overview.cycle(project, nodes, runs, plans, protection, summary, report)
+    can_run = has_perm(request.user, Perm.RUN_JOBS, project) and not project.is_archived
     ctx = {
         "project": project,
         "nodes": nodes,
         "active_policy": active_policy,
+        "flows": active_policy.flows.order_by("port") if active_policy else [],
         "jobs": jobs,
+        "steps": steps,
+        "action": overview.next_action(project, steps, nodes, runs, plans) if can_run else None,
+        "matrix": overview.defence_matrix(project, nodes, latest, first),
+        "latest_run": latest,
+        "first_run": first if first and latest and first.id != latest.id else None,
+        "finding": overview.finding(latest, nodes),
+        "scheme": overview.segment_svg(project, nodes),
+        "protection": sorted(protection, key=lambda t: t.scenario),
         "can_edit": has_perm(request.user, Perm.EDIT_PROJECT, project) and not project.is_archived,
-        "can_run": has_perm(request.user, Perm.RUN_JOBS, project) and not project.is_archived,
+        "can_run": can_run,
         "is_admin": has_perm(request.user, Perm.APPROVE_PLAN, project),
     }
     return render(request, "inventory/project_detail.html", ctx)

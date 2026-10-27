@@ -1,17 +1,16 @@
 {% extends "base.html" %}
+{% block title %}{{ u.username }} · NIXFORT{% endblock %}
 {% block content %}
-<h1 class="h3">{{ u.username }} {% if not u.is_active %}<span class="badge text-bg-secondary">отключён</span>{% endif %}</h1>
-<div class="row g-4"><div class="col-md-6">
-  <h2 class="h5">Роли</h2>
-  <ul class="list-group mb-3">{% for r in roles %}
-    <li class="list-group-item d-flex justify-content-between align-items-center">
-      {{ r.get_role_display }} · {% if r.project %}{{ r.project.name }}{% else %}все проекты{% endif %}
-      <form method="post" action="{% url 'accounts:role_revoke' u.pk r.id %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">Снять</button></form>
-    </li>{% empty %}<li class="list-group-item text-muted">Ролей нет — пользователь ничего не видит.</li>{% endfor %}</ul>
-  <form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}">{% csrf_token %}
-    <button class="btn btn-outline-secondary btn-sm">{% if u.is_active %}Отключить учётную запись{% else %}Включить учётную запись{% endif %}</button></form>
-</div><div class="col-md-6">
-  <h2 class="h5">Назначить роль</h2>
-  <form method="post">{% include "core/_form.html" %}<button class="btn btn-primary">Назначить</button></form>
-</div></div>
+<div class="page-head"><div><div class="crumbs"><a href="{% url 'accounts:user_list' %}">Пользователи</a></div>
+  <div class="title-line"><h1>{{ u.username }}</h1><span class="st {% if u.is_active %}s-pass{% else %}s-off{% endif %}">{{ u.is_active|yesno:"включена,отключена" }}</span></div>
+  <div class="sub">Последний вход {{ u.last_login|date:"d.m.Y H:i"|default:"не выполнялся" }}</div></div>
+  <div class="actions"><form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}">{% csrf_token %}<button class="btn {% if u.is_active %}danger{% endif %}">{% if u.is_active %}Отключить учётную запись{% else %}Включить учётную запись{% endif %}</button></form></div></div>
+<div class="grid g-1-1">
+  <section class="panel"><div class="panel-head"><h2>Роли</h2></div>
+    <table class="table"><tbody>{% for r in roles %}<tr><td class="first">{{ r.get_role_display }}<span class="sub">{% if r.project %}в проекте {{ r.project.name }}{% else %}во всех проектах{% endif %}</span></td>
+      <td class="last num"><form method="post" action="{% url 'accounts:role_revoke' u.pk r.id %}">{% csrf_token %}<button class="link-btn danger">Снять роль</button></form></td></tr>
+    {% empty %}<tr><td class="empty">Ролей нет: пользователь не видит ни одного проекта.</td></tr>{% endfor %}</tbody></table></section>
+  <section class="panel"><div class="panel-head"><h2>Назначить роль</h2></div>
+    <div class="panel-body"><form method="post">{% include "core/_form.html" %}<button class="btn primary">Назначить</button></form></div></section>
+</div>
 {% endblock %}

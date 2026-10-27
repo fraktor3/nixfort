@@ -1,39 +1,40 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Журналы безопасности — {{ project.name }}{% endblock %}
+{% block title %}Журналы безопасности · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / журналы безопасности</nav>
-<div class="d-flex justify-content-between align-items-start mb-3">
-  <div><h1 class="h3">Журналы безопасности</h1>
-  <p class="text-muted small mb-0">Сводка за последние {{ s.window_hours|default:24 }} ч: неудачные входы по SSH, блокировки Fail2ban и события системы обнаружения вторжений.</p></div>
-  {% if can_run %}<form method="post" action="{% url 'seclog:refresh' project.id %}">{% csrf_token %}<button class="btn btn-primary">Обновить сводку</button></form>{% endif %}
+<div class="page-head">
+  <div><h1>Журналы безопасности</h1><div class="sub">Сводка за {{ s.window_hours|default:24 }} ч: неудачные входы по SSH и блокировки Fail2ban с серверов, события системы обнаружения вторжений.{% if s %} Сформирована {{ s.created_at|date:"d.m.Y H:i:s" }}.{% endif %}</div></div>
+  <div class="actions">{% if can_run %}<form method="post" action="{% url 'seclog:refresh' project.id %}">{% csrf_token %}<button class="btn primary">Обновить сводку</button></form>{% endif %}</div>
 </div>
-{% if not s %}<div class="alert alert-secondary">Сводок ещё нет. Нажмите «Обновить сводку».</div>
+{% if not s %}<section class="panel"><div class="empty">Сводок ещё нет.{% if can_run %} Нажмите «Обновить сводку»: NIXFORT прочитает журналы на серверах через агента.{% endif %}</div></section>
 {% else %}{% with d=s.data %}
-<div class="small text-muted mb-3">Сформирована {{ s.created_at|date:"d.m.Y H:i:s" }} · <span class="badge text-bg-{{ s.state|status_class }}">{{ s.get_state_display }}</span></div>
-<h2 class="h5">Серверы: входы по SSH и блокировки</h2>
-{% for r in d.servers %}<div class="card mb-2"><div class="card-header d-flex justify-content-between"><b>{{ r.node }}</b>
-  {% if not r.reachable %}<span class="text-danger small">{{ r.note }}</span>{% endif %}</div>
-  {% if r.reachable %}<div class="card-body">
-  <div class="row">
-    <div class="col-md-6"><h3 class="h6">Неудачные входы SSH{% if r.auth %}: {{ r.auth.total }}{% endif %}</h3>
-    {% if r.auth and r.auth.by_source %}<table class="table table-sm mb-2"><thead><tr><th>Источник</th><th class="text-end">Попыток</th></tr></thead><tbody>
-      {% for x in r.auth.by_source %}<tr><td class="mono">{{ x.ip }}</td><td class="text-end">{{ x.count }}</td></tr>{% endfor %}</tbody></table>
-      <div class="small text-muted">Чаще всего перебирали: {% for u in r.auth.by_user %}<span class="mono">{{ u.value }}</span> ({{ u.count }}){% if not forloop.last %}, {% endif %}{% endfor %}</div>
-    {% elif r.auth %}<span class="text-muted small">Неудачных входов нет.</span>{% else %}<span class="text-muted small">Журнал недоступен.</span>{% endif %}</div>
-    <div class="col-md-6"><h3 class="h6">Fail2ban</h3>
-    {% if r.fail2ban %}<div class="small">Служба: <span class="badge text-bg-{% if r.fail2ban.service == 'active' %}success{% else %}secondary{% endif %}">{{ r.fail2ban.service|default:"—" }}</span>
-      {% if r.fail2ban.enabled %}· jail sshd включён{% endif %}</div>
-      <div class="mt-1">В бане сейчас: {% if r.fail2ban.banned_ips %}{% for ip in r.fail2ban.banned_ips %}<span class="badge text-bg-danger mono">{{ ip }}</span> {% endfor %}{% else %}<span class="text-muted">нет</span>{% endif %}</div>
-      {% if r.fail2ban.total_banned is not None %}<div class="small text-muted">Всего банов: {{ r.fail2ban.total_banned }}</div>{% endif %}
-    {% else %}<span class="text-muted small">Fail2ban не настроен или недоступен.</span>{% endif %}</div>
-  </div></div>{% endif %}</div>
-{% empty %}<p class="text-muted">В проекте нет серверов.</p>{% endfor %}
-<h2 class="h5 mt-3">События обнаружения вторжений: {{ d.ids.alerts }}</h2>
-{% if d.ids.by_signature %}<table class="table table-sm"><thead><tr><th>sid</th><th>Правило</th><th class="text-end">Событий</th><th>Последнее</th></tr></thead><tbody>
-{% for b in d.ids.by_signature %}<tr><td class="mono">{{ b.sid }}</td><td>{{ b.signature }}</td><td class="text-end">{{ b.count }}</td><td class="small">{{ b.last|isodt }}</td></tr>{% endfor %}</tbody></table>
-<div class="small text-muted">Подробнее — на странице <a href="{% url 'ids:sensor' project.id %}">IDS</a>.</div>
-{% else %}<p class="text-muted small">Событий за период нет. См. страницу <a href="{% url 'ids:sensor' project.id %}">IDS</a>.</p>{% endif %}
+<div class="figures">
+  <div><div class="label">Неудачных входов SSH</div><div class="value">{{ auth_total }}</div></div>
+  <div><div class="label">Адресов в бане сейчас</div><div class="value">{% if banned_total %}<span class="st big s-fail">{{ banned_total }}</span>{% else %}0{% endif %}</div></div>
+  <div><div class="label">Событий IDS</div><div class="value">{{ d.ids.alerts }}</div></div>
+  <div><div class="label">Серверов в сводке</div><div class="value">{{ d.servers|length }}</div></div>
+</div>
+{% for r in d.servers %}<section class="panel section-gap" aria-label="{{ r.node }}">
+  <div class="panel-head"><h2 class="mono">{{ r.node }}</h2>{% if not r.reachable %}<span class="st s-fail">{{ r.note }}</span>{% endif %}</div>
+  {% if r.reachable %}<div class="grid g-1-1 flush">
+    <div><table class="table">
+      <thead><tr><th class="first">Неудачные входы по источникам</th><th class="num last">Попыток</th></tr></thead>
+      <tbody>{% if r.auth %}{% for x in r.auth.by_source %}<tr><td class="first mono">{{ x.ip }}</td><td class="num last">{{ x.count }}</td></tr>
+        {% empty %}<tr><td colspan="2" class="empty">Неудачных входов нет.</td></tr>{% endfor %}
+        {% else %}<tr><td colspan="2" class="empty">Журнал недоступен.</td></tr>{% endif %}</tbody></table>
+      {% if r.auth.by_user %}<div class="panel-foot small"><span class="muted">Чаще всего перебирали:</span> {% for u in r.auth.by_user %}<span class="mono">{{ u.value }}</span> {{ u.count }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}</div>
+    <div class="split-right">
+      <div class="panel-body">{% if r.fail2ban %}<table class="kv">
+        <tr><th>Fail2ban</th><td><span class="st {% if r.fail2ban.service == 'active' %}s-pass{% else %}s-na{% endif %}">{{ r.fail2ban.service|default:"–" }}</span>{% if r.fail2ban.enabled %}<span class="sub">jail sshd включён</span>{% endif %}</td></tr>
+        <tr><th>В бане сейчас</th><td>{% for ip in r.fail2ban.banned_ips %}<span class="st s-fail mono">{{ ip }}</span> {% empty %}<span class="muted">никого</span>{% endfor %}</td></tr>
+        {% if r.fail2ban.total_banned is not None %}<tr><th>Всего блокировок</th><td>{{ r.fail2ban.total_banned }}</td></tr>{% endif %}
+      </table>{% else %}<p class="muted">Fail2ban не настроен или недоступен.</p>{% endif %}</div></div>
+  </div>{% endif %}
+</section>{% empty %}<section class="panel section-gap"><div class="empty">В проекте нет серверов.</div></section>{% endfor %}
+<section class="panel section-gap" aria-labelledby="h-ids"><div class="panel-head"><h2 id="h-ids">События обнаружения вторжений</h2><a class="meta" href="{% url 'ids:sensor' project.id %}">все события датчика</a></div>
+  {% if d.ids.by_signature %}<div class="table-wrap"><table class="table"><thead><tr><th class="first">Правило</th><th class="num">Событий</th><th class="num last">Последнее</th></tr></thead><tbody>
+  {% for b in d.ids.by_signature %}<tr><td class="first">{{ b.signature }}<span class="sub mono">sid {{ b.sid }}</span></td><td class="num">{{ b.count }}</td><td class="num last">{{ b.last|isodt }}</td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<div class="empty">Событий за период нет.</div>{% endif %}</section>
 {% endwith %}{% endif %}
-{% if history|length > 1 %}<h2 class="h6 mt-4">Прошлые сводки</h2>
-<ul class="small">{% for h in history %}<li><a href="?s={{ h.id }}">{{ h.created_at|date:"d.m.Y H:i:s" }}</a> — {{ h.get_state_display }}</li>{% endfor %}</ul>{% endif %}
+{% if history|length > 1 %}<section class="panel section-gap"><div class="panel-head"><h2>Прошлые сводки</h2></div>
+  <table class="table"><tbody>{% for h in history %}<tr><td class="first"><a href="?s={{ h.id }}">{{ h.created_at|date:"d.m.Y H:i:s" }}</a></td><td class="last"><span class="st {{ h.state|st }}">{{ h.get_state_display }}</span></td></tr>{% endfor %}</tbody></table></section>{% endif %}
 {% endblock %}

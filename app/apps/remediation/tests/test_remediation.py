@@ -203,7 +203,7 @@ def test_happy_path_verified_and_before_after(client_as, admin, operator, baseli
     post = {(r.node.name, r.check_id): r.status for r in plan.post_audit_run.results.select_related("node")}
     assert post[("nx-server", "SSH-01")] == "PASS" and post[("nx-server", "F2B-02")] == "PASS"
     page = client_as(admin).get(reverse("remediation:plan_detail", args=[plan.project_id, plan.id])).content.decode()
-    assert "До / после" in page
+    assert "До и после" in page
 
 
 def test_failed_verification_rolls_back(client_as, admin, operator, baseline_run, monkeypatch):

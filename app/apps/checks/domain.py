@@ -92,7 +92,7 @@ def sys_02(facts, ctx):
     if synced is None:
         return Outcome(UNKNOWN, t, "синхронизировано", "Состояние синхронизации времени не получено.")
     if synced:
-        return Outcome(PASS, t, "синхронизировано", "Время синхронизировано — журналы событий сопоставимы.")
+        return Outcome(PASS, t, "синхронизировано", "Время синхронизировано, журналы событий сопоставимы.")
     return Outcome(
         FAIL, t, "синхронизировано", "Время не синхронизировано: метки событий в журналах и IDS будут недостоверны."
     )
@@ -202,7 +202,7 @@ def fw_02(facts, ctx):
     req(n, "nixfort_table_present", "nft")
     if ctx.active_policy_version is None:
         return Outcome(
-            UNKNOWN, None, "активная политика", "В проекте нет активной политики соединений — сравнивать не с чем."
+            UNKNOWN, None, "активная политика", "В проекте нет активной политики соединений, сравнивать не с чем."
         )
     meta = n.get("policy_meta") or {}
     present = n.get("nixfort_table_present")
@@ -236,7 +236,7 @@ def fw_04(facts, ctx):
     if ctx.controller_ip and ctx.controller_ip in sources:
         return Outcome(PASS, sources, ctx.controller_ip, "SSH-доступ контроллера к шлюзу явно разрешён.")
     return Outcome(
-        FAIL, sources, ctx.controller_ip, "Нет явного разрешения SSH с адреса контроллера — риск потери управления."
+        FAIL, sources, ctx.controller_ip, "Нет явного разрешения SSH с адреса контроллера: есть риск потери управления."
     )
 
 
@@ -297,7 +297,7 @@ def f2b_03(facts, ctx):
     sshd = f.get("sshd") or {}
     want = "maxretry ≤ 5, bantime ≥ 600 с"
     if not sshd.get("enabled"):
-        return Outcome(FAIL, None, want, "Jail sshd не работает — параметры не действуют.")
+        return Outcome(FAIL, None, want, "Jail sshd не работает, параметры не действуют.")
     mr, bt = sshd.get("maxretry"), sshd.get("bantime")
     if mr is None or bt is None:
         return Outcome(UNKNOWN, {"maxretry": mr, "bantime": bt}, want, "Параметры jail не получены.")
@@ -439,7 +439,7 @@ CATALOG: tuple[CheckDef, ...] = (
         "ssh.apply_hardening_profile.v1",
         S,
         _ssh_eq(
-            "passwordauthentication", "no", "Вход по паролю отключён.", "Разрешён вход по паролю — возможен перебор."
+            "passwordauthentication", "no", "Вход по паролю отключён.", "Разрешён вход по паролю: возможен перебор."
         ),
     ),
     CheckDef(
@@ -646,7 +646,7 @@ def evaluate(check: CheckDef, facts: dict, ctx: Ctx) -> Outcome:
     # Unsupported OS: only SYS-01 is evaluated
     system = (facts.get("system") or {}).get("result") or {}
     if check.id != "SYS-01" and system and not system.get("os_supported", False):
-        return Outcome(UNKNOWN, None, check.expected, "ОС не поддерживается — результат проверки недостоверен.")
+        return Outcome(UNKNOWN, None, check.expected, "ОС не поддерживается, результат проверки недостоверен.")
     try:
         return check.evaluate(facts, ctx)
     except MissingFact as exc:
@@ -655,7 +655,7 @@ def evaluate(check: CheckDef, facts: dict, ctx: Ctx) -> Outcome:
                 UNKNOWN,
                 None,
                 check.expected,
-                "Конфигурация sshd некорректна (см. SSH-07) — эффективное значение не определено.",
+                "Конфигурация sshd некорректна (см. SSH-07), эффективное значение не определено.",
             )
         return Outcome(UNKNOWN, None, check.expected, f"Нет данных «{exc.key}».")
     except (KeyError, TypeError, ValueError, AttributeError):

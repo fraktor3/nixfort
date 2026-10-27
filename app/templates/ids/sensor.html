@@ -1,35 +1,42 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Датчик IDS — {{ project.name }}{% endblock %}
+{% block title %}Датчик IDS · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / датчик IDS</nav>
-<div class="d-flex justify-content-between align-items-start mb-3">
-  <div><h1 class="h3">Датчик вторжений (Suricata)</h1>
-  <p class="text-muted small mb-0">Состояние — из последней инвентаризации. События читаются из журнала EVE на узле-датчике; хранятся только поля: время, тип, правило, адреса и порты.</p></div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary" href="{% url 'ids:protection' project.id %}">Проверка защиты</a>
-    {% if can_run %}<form method="post" action="{% url 'ids:fetch' project.id %}">{% csrf_token %}<button class="btn btn-primary">Получить новые события</button></form>{% endif %}
-  </div>
+<div class="page-head">
+  <div><h1>Датчик вторжений Suricata</h1><div class="sub">Состояние берётся из последней инвентаризации. События читаются из журнала EVE на узле-датчике; сохраняются только время, тип, правило, адреса и порты.</div></div>
+  <div class="actions">{% if can_run %}<form method="post" action="{% url 'ids:fetch' project.id %}">{% csrf_token %}<button class="btn primary">Получить новые события</button></form>{% endif %}</div>
 </div>
+<div class="grid g-1-2">
+<div class="stack">
 {% for s in sensors %}
-<div class="card mb-3"><div class="card-header">{{ s.node.name }} · интерфейс {{ s.node.ids_interface|default:"не задан" }}{% if s.at %} <span class="text-muted small">· инвентаризация {{ s.at|date:"d.m.Y H:i" }}</span>{% endif %}</div>
-<div class="card-body small">
-{% if not s.at %}<span class="text-muted">Инвентаризации ещё не было.</span>
-{% elif s.state != "OK" %}<span class="text-danger">Состояние датчика не получено ({{ s.state }}).</span>
-{% elif not s.r.installed %}<span class="text-danger">Suricata не установлена.</span>
-{% else %}
-<div>Служба: <span class="badge text-bg-{% if s.r.service == 'active' %}success{% else %}danger{% endif %}">{{ s.r.service }}</span> · версия {{ s.r.version|default:"—" }} · проверка конфигурации: {% if s.r.config_test.ok %}<span class="text-success">OK</span>{% else %}<span class="text-danger">ошибка</span>{% endif %}</div>
-<div>Слушает интерфейсы: <span class="mono">{{ s.r.af_packet_interfaces|join:", "|default:"—" }}</span> · журнал EVE: {% if s.r.eve.enabled and s.r.eve.readable %}<span class="text-success">пишется</span> <span class="mono">{{ s.r.eve.path }}</span>{% elif s.r.eve.enabled %}<span class="text-danger">недоступен для чтения</span>{% else %}<span class="text-danger">выключен</span>{% endif %}</div>
-<div>Правила NIXFORT: {% if s.r.nixfort_test_rule_loaded %}<span class="text-success">загружены</span>{% else %}<span class="text-muted">не загружены</span>{% endif %}</div>
-{% endif %}
-<div class="text-muted mt-1">Датчик видит только трафик своего интерфейса; отсутствие событий не означает отсутствия атак.</div>
-</div></div>
-{% empty %}<div class="alert alert-warning">В проекте нет узла с ролью «Датчик IDS».</div>{% endfor %}
-<div class="d-flex justify-content-between align-items-end"><h2 class="h5 mb-2">События</h2>
-  <div class="small">{% if only_nixfort %}показаны правила NIXFORT · <a href="?all=1">все события</a>{% else %}все события · <a href="?">только правила NIXFORT</a>{% endif %}
-  {% if last_fetch %} · последнее чтение {{ last_fetch.created_at|date:"d.m.Y H:i:s" }} <span class="badge text-bg-{{ last_fetch.state|status_class }}">{{ last_fetch.get_state_display }}</span>{% endif %}</div></div>
-<table class="table table-sm"><thead><tr><th>Время</th><th>Датчик</th><th>Тип</th><th>Правило</th><th>Источник → назначение</th></tr></thead><tbody>
-{% for e in events %}<tr><td class="mono small">{{ e.ts|date:"d.m.Y H:i:s" }}</td><td>{{ e.node.name }}</td><td>{{ e.event_type }}</td>
-  <td><span class="mono small">{{ e.signature_id|default:"" }}</span> {{ e.signature }}</td>
-  <td class="mono small">{{ e.src_ip|default:"" }}{% if e.src_port %}:{{ e.src_port }}{% endif %} → {{ e.dest_ip|default:"" }}{% if e.dest_port %}:{{ e.dest_port }}{% endif %} {{ e.proto }}</td></tr>
-{% empty %}<tr><td colspan="5" class="text-muted">Событий нет. Нажмите «Получить новые события» или выполните «Проверку защиты».</td></tr>{% endfor %}</tbody></table>
+<section class="panel"><div class="panel-head"><h2 class="mono">{{ s.node.name }}</h2><span class="meta">{% if s.at %}инвентаризация {{ s.at|date:"d.m.Y H:i" }}{% endif %}</span></div>
+  <div class="panel-body">
+  {% if not s.at %}<p class="muted">Инвентаризации ещё не было.</p>
+  {% elif s.state != "OK" %}<p><span class="st s-fail">Состояние датчика не получено</span> <span class="mono">{{ s.state }}</span></p>
+  {% elif not s.r.installed %}<p><span class="st s-fail">Suricata не установлена</span></p><p class="small muted">Установка и настройка датчика входят в план исправлений (проверки IDS-01…IDS-03).</p>
+  {% else %}<table class="kv">
+    <tr><th>Служба</th><td><span class="st {% if s.r.service == 'active' %}s-pass{% else %}s-fail{% endif %}">{{ s.r.service }}</span></td></tr>
+    <tr><th>Версия</th><td class="mono">{{ s.r.version|default:"–" }}</td></tr>
+    <tr><th>Конфигурация</th><td>{% if s.r.config_test.ok %}<span class="st s-pass">проверена</span>{% else %}<span class="st s-fail">ошибка</span>{% endif %}</td></tr>
+    <tr><th>Слушает</th><td class="mono">{{ s.r.af_packet_interfaces|join:", "|default:"–" }}<span class="sub">ожидается {{ s.node.ids_interface|default:"не задан" }}</span></td></tr>
+    <tr><th>Журнал EVE</th><td>{% if s.r.eve.enabled and s.r.eve.readable %}<span class="st s-pass">пишется</span><span class="sub mono">{{ s.r.eve.path }}</span>{% elif s.r.eve.enabled %}<span class="st s-fail">недоступен для чтения</span>{% else %}<span class="st s-fail">выключен</span>{% endif %}</td></tr>
+    <tr><th>Правила NIXFORT</th><td>{% if s.r.nixfort_test_rule_loaded %}<span class="st s-pass">загружены</span>{% else %}<span class="st s-na">не загружены</span>{% endif %}</td></tr>
+  </table>{% endif %}
+  </div>
+  <div class="panel-foot muted small">Датчик видит только трафик своего интерфейса: отсутствие событий не означает отсутствия атак.</div>
+</section>
+{% empty %}<section class="panel"><div class="empty">В проекте нет узла с ролью «датчик IDS». Назначьте её шлюзу и укажите интерфейс, обращённый к сети пользователей.</div></section>{% endfor %}
+</div>
+<section class="panel" aria-labelledby="h-ev">
+  <div class="panel-head"><h2 id="h-ev">События</h2>
+    <span class="meta">{% if only_nixfort %}правила NIXFORT · <a href="?all=1">все события</a>{% else %}все события · <a href="?">только правила NIXFORT</a>{% endif %}{% if last_fetch %} · прочитано {{ last_fetch.created_at|date:"d.m.Y H:i:s" }}{% endif %}</span></div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th class="first">Время</th><th>Правило</th><th>Источник</th><th class="last">Назначение</th></tr></thead>
+    <tbody>{% for e in events %}<tr><td class="first nowrap">{{ e.ts|date:"d.m H:i:s" }}<span class="sub">{{ e.event_type }}</span></td>
+      <td>{{ e.signature }}<span class="sub mono">sid {{ e.signature_id|default:"–" }}</span></td>
+      <td class="mono">{{ e.src_ip|default:"–" }}{% if e.src_port %}:{{ e.src_port }}{% endif %}</td>
+      <td class="mono last">{{ e.dest_ip|default:"–" }}{% if e.dest_port %}:{{ e.dest_port }}{% endif %}<span class="sub">{{ e.proto }}</span></td></tr>
+    {% empty %}<tr><td colspan="4" class="empty">Событий нет. Получите новые события или запустите «Проверку защиты».</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+</div>
 {% endblock %}

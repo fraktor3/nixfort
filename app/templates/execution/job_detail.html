@@ -1,6 +1,7 @@
-{% extends "base.html" %}
+{% extends "base.html" %}{% load nx %}
+{% block title %}{{ job|job_label }} · {{ project.name }}{% endblock %}
 {% block content %}
-<nav class="small mb-2"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / <a href="{% url 'execution:job_list' project.id %}">задания</a></nav>
-<h1 class="h3">{{ job.get_type_display }}{% if job.node %} · {{ job.node.name }}{% endif %}</h1>
+<div class="page-head"><div><div class="crumbs"><a href="{% url 'execution:job_list' project.id %}">Задания</a></div>
+  <h1>{{ job|job_label }}{% if job.node %} <span class="mono">{{ job.node.name }}</span>{% endif %}</h1></div></div>
 <div id="job-status">{% include "execution/_job_status.html" %}</div>
 {% endblock %}
