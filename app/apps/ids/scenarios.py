@@ -244,9 +244,35 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
     layers.append(_ids_layer(available, reason, _alerts(events, BRUTE_SID, client.data_ips),
                              f"событие «подбор пароля SSH» (sid {BRUTE_SID}) от {', '.join(client.data_ips)}"))  # fmt: skip
 
-    # B. inside the management network (no gateway on the path): only the server's own Fail2ban can help
+    # B. inside the management network (no gateway on the path): the server defends itself — its host
+    # firewall (T-023) if SSH is limited to management sources, otherwise Fail2ban.
     st = _call(client_factory, server, "fail2ban.read_status.v1")
     jail = (st.result or {}).get("sshd") or {} if st.ok else {}
+    host_fw = _host_firewall(client_factory, server)
+    if host_fw is not None and not _covered(client.mgmt_ip, host_fw):
+        log(f"B. {client.name} → {server.mgmt_ip}:22 напрямую (сеть управления): 7 попыток входа", "INFO")
+        b = _call(client_factory, client, "net.ssh_login_attempts.v1",
+                  {"ip": server.mgmt_ip, "port": 22, "count": 7}, deadline_s=120)  # fmt: skip
+        sb = (b.result or {}).get("summary") or {} if b.ok else {}
+        details["direct"] = sb
+        details["host_firewall_ssh_sources"] = host_fw
+        reached, blocked = sb.get("REJECTED", 0), sb.get("CLOSED", 0) + sb.get("TIMEOUT", 0)
+        layers.append({
+            "layer": "Хостовый межсетевой экран (сервер)",
+            "expected": f"SSH на сервер разрешён только с {', '.join(host_fw)} — попытки с {client.mgmt_ip} "
+                        "не доходят до sshd",
+            "observed": f"дошли до sshd: {reached} из 7; не установлены: {blocked}",
+            "ok": b.ok and reached == 0 and blocked > 0,
+        })  # fmt: skip
+        if b.ok and reached == 0:
+            layers.append({
+                "layer": "Fail2ban (сервер)",
+                "expected": f"блокировка после {jail.get('maxretry', '—')} неудачных попыток, если они дойдут до sshd",
+                "observed": "не потребовался: попытки остановил хостовый межсетевой экран до sshd"
+                            + ("" if jail.get("enabled") else " (jail sshd не включён)"),
+                "ok": None,
+            })  # fmt: skip
+        return _save(job, ProtectionTest.Scenario.SSH_BRUTEFORCE, layers, details)
     if st.ok and jail.get("enabled"):
         log(f"B. {client.name} → {server.mgmt_ip}:22 напрямую (сеть управления): 7 попыток входа", "INFO")
         b = _call(client_factory, client, "net.ssh_login_attempts.v1",
@@ -269,6 +295,23 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
         layers.append({"layer": "Fail2ban (сервер)", "expected": "jail sshd включён",
                        "observed": "Fail2ban на сервере не настроен — шаг B не выполнялся", "ok": False})  # fmt: skip
     return _save(job, ProtectionTest.Scenario.SSH_BRUTEFORCE, layers, details)
+
+
+def _host_firewall(client_factory, server: Node) -> list[str] | None:
+    """SSH sources allowed by the server's host firewall (input chain with policy drop), or None if there is
+    no such firewall or it could not be read."""
+    r = _call(client_factory, server, "nft.inspect.v1")
+    if not r.ok or ((r.result.get("nixfort_chains") or {}).get("input") or {}).get("policy") != "drop":
+        return None
+    return list(r.result.get("nixfort_input_ssh_sources") or [])
+
+
+def _covered(ip: str, sources: list[str]) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return any(addr in ipaddress.ip_network(s, strict=False) for s in sources)
+    except ValueError:
+        return False
 
 
 def _start_capture(job, sensor: Node, client_factory, log):

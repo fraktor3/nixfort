@@ -42,6 +42,7 @@ class Lab:
         self.suricata = {"installed": suricata_installed, "service": "failed", "iface": ["eth0"]}
         self.calls = []
         self.pcap = None  # what net.capture.v1 on the gateway returns (None: tcpdump is missing)
+        self.host_fw = None  # SSH sources allowed by the server's host firewall (None: no host firewall)
 
     def _event(self, sid, src, dst, port):
         ts = timezone.now().astimezone(timezone.get_fixed_timezone(180)).isoformat()
@@ -55,6 +56,12 @@ class Lab:
         via_gateway = dst.startswith("10.99.")
         if via_gateway and self.firewall and (dst, port) not in self.allowed:
             return "TIMEOUT"
+        if (
+            dst == "10.77.0.30"
+            and self.host_fw is not None
+            and not any(ipaddress.ip_address(src) in ipaddress.ip_network(n, strict=False) for n in self.host_fw)
+        ):
+            return "TIMEOUT"  # host firewall on the server: policy drop
         if dst == "10.77.0.30" and src in self.banned:
             return "CLOSED"
         return "OPEN"
@@ -159,6 +166,11 @@ class Lab:
                     if action == "mutation.rollback_now.v1":
                         lab.suricata = lab.prev
                         return ok({"rolled_back": True})
+                if name == "nx-server" and action == "nft.inspect.v1":
+                    if lab.host_fw is None:
+                        return ok({"nixfort_table_present": False, "nixfort_chains": {}})
+                    return ok({"nixfort_table_present": True, "nixfort_chains": {"input": {"policy": "drop"}},
+                               "nixfort_input_ssh_sources": list(lab.host_fw), "nixfort_input_ports": [80]})  # fmt: skip
                 if name == "nx-server" and action == "fail2ban.read_status.v1":
                     if not lab.f2b:
                         return ok({"service": "inactive", "sshd": None})
@@ -358,3 +370,27 @@ def test_load_resilience_without_capture_keeps_verdict(client_as, admin, project
     assert "tool_missing" in t.details["capture"]["error"]
     page = client_as(admin).get(reverse("ids:protection_detail", args=[project.id, t.id])).content.decode()
     assert "Запись трафика не получена" in page
+
+
+def test_bruteforce_stopped_by_server_host_firewall(client_as, admin, project, policy, monkeypatch):
+    """S-009: with the host firewall the direct attempts never reach sshd — that is protection, not a Fail2ban
+    failure. Fail2ban is reported as «not needed» (no data), the verdict is PROTECTED."""
+    lab = Lab()
+    lab.host_fw = ["10.0.2.2", "10.77.0.10"]  # the client (10.77.0.40) is not a management source
+    run_job(client_as, admin, reverse("ids:protection_run", args=[project.id, "SSH_BRUTEFORCE"]), lab, monkeypatch)
+    t = ProtectionTest.objects.filter(scenario="SSH_BRUTEFORCE").latest("created_at")
+    hfw = next(x for x in t.layers if x["layer"] == "Хостовый межсетевой экран (сервер)")
+    f2b = next(x for x in t.layers if x["layer"] == "Fail2ban (сервер)")
+    assert hfw["ok"] is True and "дошли до sshd: 0 из 7" in hfw["observed"]
+    assert f2b["ok"] is None and "не потребовался" in f2b["observed"]
+    assert t.verdict == "PROTECTED" and lab.banned == []
+
+
+def test_bruteforce_client_allowed_by_host_firewall_still_checks_fail2ban(client_as, admin, project, policy,
+                                                                           monkeypatch):  # fmt: skip
+    lab = Lab()
+    lab.host_fw = ["10.77.0.0/24"]  # the whole management network may SSH -> Fail2ban is the layer that acts
+    run_job(client_as, admin, reverse("ids:protection_run", args=[project.id, "SSH_BRUTEFORCE"]), lab, monkeypatch)
+    t = ProtectionTest.objects.filter(scenario="SSH_BRUTEFORCE").latest("created_at")
+    assert "Хостовый межсетевой экран (сервер)" not in [x["layer"] for x in t.layers]
+    assert next(x for x in t.layers if x["layer"] == "Fail2ban (сервер)")["ok"] is True
