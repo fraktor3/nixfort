@@ -265,8 +265,10 @@ class AuthFailuresTests(unittest.TestCase):
     )
 
     def test_reads_and_aggregates(self):
+        # journalctl is absent in the controller image (S-008 on the lab): pretend it is installed.
         runner = FakeRunner({("_COMM=sshd",): ok(self.JOURNAL)})
-        r = call(request("system.read_auth_failures.v1", {"hours": 24}), runner)
+        with mock.patch("nixfort_agent.actions.system.os.access", return_value=True):
+            r = call(request("system.read_auth_failures.v1", {"hours": 24}), runner)
         self.assertEqual(r["state"], "OK")
         res = r["result"]
         self.assertEqual(res["total"], 3)
@@ -275,6 +277,11 @@ class AuthFailuresTests(unittest.TestCase):
         argv = runner.calls[0]
         self.assertEqual(argv[0], "/usr/bin/journalctl")
         self.assertIn("_COMM=sshd", argv)
+
+    def test_without_journalctl_is_tool_missing(self):
+        with mock.patch("nixfort_agent.actions.system.os.access", return_value=False):
+            r = call(request("system.read_auth_failures.v1", {"hours": 24}), FakeRunner())
+        self.assertEqual((r["state"], r["error_code"]), ("ERROR", "tool_missing"))
 
     def test_params_strict(self):
         for bad in ({"hours": 0}, {"hours": 999}, {}):
