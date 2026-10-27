@@ -23,6 +23,7 @@ MAX_PACKETS = 200_000
 MAX_BUCKETS = 120
 SCAN_DISTINCT_PORTS = 20  # one source → this many distinct destination ports ⇒ scan
 BRUTE_SYN_TO_22 = 5  # this many new connections to port 22 from one source ⇒ brute force
+BURST_SYN = 100  # this many connection attempts (SYN) from one source ⇒ burst (load test, flood-like traffic)
 FIELDS = ["frame.time_relative", "ip.src", "ip.dst", "frame.len", "tcp.srcport", "tcp.dstport",
           "tcp.flags.syn", "tcp.flags.ack", "udp.srcport", "udp.dstport", "_ws.col.Protocol"]  # fmt: skip
 
@@ -76,6 +77,7 @@ def summarize(tsv: str) -> dict[str, Any]:
     ports: dict[tuple, int] = defaultdict(int)
     scan_ports: dict[str, set] = defaultdict(set)  # src → distinct dst ports seen with SYN
     ssh_syn: dict[str, int] = defaultdict(int)  # src → SYN to port 22
+    syn_by_src: dict[str, list[float]] = {}  # src → [count, first t, last t]
     times: list[tuple[float, int, bool]] = []  # (t, bytes, is_new_tcp_conn)
     total_bytes = new_conns = 0
     last_t = 0.0
@@ -99,6 +101,10 @@ def summarize(tsv: str) -> dict[str, Any]:
         is_syn = syn in ("1", "True") and ack in ("0", "", "False")
         if is_syn:
             new_conns += 1
+            if src:
+                acc = syn_by_src.setdefault(src, [0, t, t])
+                acc[0] += 1
+                acc[2] = max(acc[2], t)
         times.append((t, n, is_syn))
         protos[(label or "—").split("/")[0][:24]][0] += 1
         protos[(label or "—").split("/")[0][:24]][1] += n
@@ -125,7 +131,7 @@ def summarize(tsv: str) -> dict[str, Any]:
     def top(d, key, n=15):
         return sorted((key(k, v) for k, v in d.items()), key=lambda x: -x["frames"])[:n]
 
-    findings = _findings(scan_ports, ssh_syn, talkers)
+    findings = _findings(scan_ports, ssh_syn, talkers, syn_by_src)
     return {
         "packets": packets,
         "bytes": total_bytes,
@@ -140,7 +146,7 @@ def summarize(tsv: str) -> dict[str, Any]:
     }
 
 
-def _findings(scan_ports, ssh_syn, talkers) -> list[dict]:
+def _findings(scan_ports, ssh_syn, talkers, syn_by_src=None) -> list[dict]:
     out = []
     for src, dports in sorted(scan_ports.items(), key=lambda kv: -len(kv[1])):
         if len(dports) >= SCAN_DISTINCT_PORTS:
@@ -156,6 +162,18 @@ def _findings(scan_ports, ssh_syn, talkers) -> list[dict]:
                 "title": "Признаки подбора пароля SSH",
                 "detail": f"{src}: {cnt} новых подключений к порту 22 за время захвата.",
             })  # fmt: skip
+    for src, (cnt, first, last) in sorted((syn_by_src or {}).items(), key=lambda kv: -kv[1][0]):
+        dports = scan_ports.get(src, set())
+        if cnt < BURST_SYN or len(dports) >= SCAN_DISTINCT_PORTS:  # a scan is already reported as such
+            continue
+        span = max(last - first, 0.001)
+        plist = ", ".join(str(p) for p in sorted(dports)[:5])
+        out.append({
+            "kind": "conn_burst", "severity": "MEDIUM", "src": src, "value": int(cnt),
+            "title": "Всплеск попыток TCP-соединений",
+            "detail": f"{src}: {int(cnt)} попыток соединения (SYN) за {span:.1f} с "
+                      f"(≈{cnt / span:.0f} в секунду), порты назначения: {plist or '—'}.",
+        })  # fmt: skip
     return out
 
 

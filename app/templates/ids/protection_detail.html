@@ -4,5 +4,13 @@
 <h1 class="h4">{{ t.get_scenario_display }} — {{ t.get_verdict_display }}</h1>
 <div class="small text-muted mb-3">{{ t.created_at|date:"d.m.Y H:i:s" }}{% if t.job %} · <a href="{% url 'execution:job_detail' project.id t.job_id %}">журнал задания</a>{% endif %}</div>
 {% include "ids/_layers.html" %}
+{% if cap %}<h2 class="h6 mt-3">Трафик на шлюзе во время проверки</h2>
+{% if cap.state == "DONE" %}{% with d=cap.analysis %}
+<p class="small mb-2">{{ cap.node.name }}/{{ cap.interface }}: пакетов {{ d.packets }}, новых TCP-соединений {{ d.tcp_new_connections }}, длительность {{ d.duration_s }} с ·
+  <a href="{% url 'pcap:detail' project.id cap.id %}">полный разбор</a></p>
+{% for f in d.findings %}<div class="alert alert-warning py-2 small"><b>{{ f.title }}.</b> {{ f.detail }}</div>{% endfor %}
+{% if tl.packets %}<div class="card mb-3"><div class="card-body">{{ tl.packets|safe }}</div></div>{% endif %}
+{% endwith %}{% else %}<p class="small text-muted">Запись трафика не получена: {{ cap.error|default:"обрабатывается" }}</p>{% endif %}
+{% endif %}
 {% if t.details %}<h2 class="h6 mt-3">Подробности</h2><pre class="small mono">{{ t.details|pprint }}</pre>{% endif %}
 {% endblock %}

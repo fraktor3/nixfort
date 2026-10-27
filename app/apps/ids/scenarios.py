@@ -8,6 +8,7 @@ reported as such and never as «no attack detected».
 from __future__ import annotations
 
 import ipaddress
+import threading
 import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -17,12 +18,16 @@ from django.utils import timezone
 from apps.execution.agent_client import client_for
 from apps.execution.transport import TransportError
 from apps.inventory.models import Node
+from apps.pcap import handlers as pcap_handlers
+from apps.pcap.models import PcapCapture
 from apps.policy.models import Flow, FlowPolicyVersion
 
 from .models import IdsEvent, ProtectionTest
 
 TEST_SID, SCAN_SID, BRUTE_SID = 9000001, 9000002, 9000003
 LOAD_CONNECTIONS, LOAD_CONCURRENCY, LOAD_DURATION = 120, 25, 8
+LOAD_CAPTURE_S = 2 * LOAD_DURATION + 6  # the gateway is recorded for the whole of A and B
+CAPTURE_WARMUP_S = 2  # tcpdump needs a moment to open the interface
 SCAN_PORTS = [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5900, 8080,
               *range(1000, 1020)]  # fmt: skip
 SENSOR_WAIT_S = 6  # EVE is flushed asynchronously
@@ -266,6 +271,67 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
     return _save(job, ProtectionTest.Scenario.SSH_BRUTEFORCE, layers, details)
 
 
+def _start_capture(job, sensor: Node, client_factory, log):
+    """Record the sensor interface in a background thread while the load runs (T-025). Only the agent call
+    runs in the thread; all database work stays in the job's own thread."""
+    iface = sensor.ids_interface
+    if not iface:
+        log("запись трафика пропущена: у датчика не указан интерфейс", "WARN")
+        return None
+    cap = PcapCapture.objects.create(
+        project=job.project, node=sensor, job=job, created_by=job.requested_by, source=PcapCapture.Source.CAPTURE,
+        interface=iface, profile="ip", duration_s=LOAD_CAPTURE_S, started_at=timezone.now(),
+    )  # fmt: skip
+    box: dict = {}
+    try:
+        agent = client_factory(sensor)
+    except TransportError as exc:
+        pcap_handlers._fail(cap, f"запись трафика не начата: узел недоступен ({exc.code})", log, "WARN")
+        return None
+
+    def record():
+        try:
+            box["r"] = agent.call("net.capture.v1", {"interface": iface, "duration_s": LOAD_CAPTURE_S,
+                                                     "max_packets": 5000, "profile": "ip"},
+                                  deadline_s=LOAD_CAPTURE_S + 60)  # fmt: skip
+        except TransportError as exc:
+            box["error"] = exc.code
+        except Exception as exc:  # the thread must not die silently: the reason goes to the capture record
+            box["error"] = type(exc).__name__
+
+    th = threading.Thread(target=record, name="nixfort-load-capture", daemon=True)
+    th.start()
+    log(f"запись трафика на {sensor.name}/{iface} ({LOAD_CAPTURE_S} с) — параллельно с нагрузкой", "INFO")
+    return cap, th, box
+
+
+def _finish_capture(started, log) -> dict:
+    cap, th, box = started
+    th.join(LOAD_CAPTURE_S + 75)
+    r = box.get("r")
+    if th.is_alive():
+        pcap_handlers._fail(cap, "запись трафика не завершилась вовремя", log, "WARN")
+    elif r is None:
+        pcap_handlers._fail(cap, f"запись трафика: узел недоступен ({box.get('error')})", log, "WARN")
+    elif not r.ok:
+        pcap_handlers._fail(cap, f"запись трафика не выполнена ({r.state} {r.error_code})", log, "WARN")
+    else:
+        pcap_handlers.store_and_analyse(cap, r.result, log)
+    cap.refresh_from_db()
+    out = {"id": str(cap.id), "state": cap.state, "interface": cap.interface}
+    if cap.state != PcapCapture.State.DONE:
+        out["error"] = cap.error
+        return out
+    a = cap.analysis
+    tl = a.get("timeline") or {}
+    out.update({
+        "packets": a.get("packets"), "tcp_new_connections": a.get("tcp_new_connections"),
+        "peak_syn": max(tl.get("syn") or [0]), "bucket_s": tl.get("bucket_s"),
+        "findings": [f["title"] for f in a.get("findings", [])],
+    })  # fmt: skip
+    return out
+
+
 def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
     """Controlled resilience check: a burst of short TCP connections from the client, measured two ways —
     against an ALLOWED service (it must stay responsive) and against a DENIED port (the firewall must absorb
@@ -283,6 +349,9 @@ def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
         raise ScenarioError("в политике нет разрешённого сервиса для проверки устойчивости")
     layers, details = [], {}
     since = timezone.now() - timedelta(seconds=5)
+    recording = _start_capture(job, sensor, client_factory, log)
+    if recording:
+        sleep(CAPTURE_WARMUP_S)
 
     # A. load against an allowed service — it must keep answering
     ap = allowed[0]
@@ -301,6 +370,8 @@ def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
         deadline_s=LOAD_DURATION + 30,
     )
     if not a.ok:
+        if recording:
+            _finish_capture(recording, log)
         raise ScenarioError(f"нагрузка не выполнена ({a.state} {a.error_code})")
     ra = a.result
     details["allowed"] = {
@@ -353,6 +424,10 @@ def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
         "observed": "сервис доступен" if after_open else "сервис не ответил",
         "ok": after_open,
     })  # fmt: skip
+
+    # the traffic picture of the whole check (it is informative, not a defence layer: the verdict is unchanged)
+    if recording:
+        details["capture"] = _finish_capture(recording, log)
 
     # Suricata should have flagged the burst (many new connections from one source)
     sleep(SENSOR_WAIT_S)

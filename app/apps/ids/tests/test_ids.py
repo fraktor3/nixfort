@@ -41,6 +41,7 @@ class Lab:
         self.eve, self.banned, self.failures = [], [], 0
         self.suricata = {"installed": suricata_installed, "service": "failed", "iface": ["eth0"]}
         self.calls = []
+        self.pcap = None  # what net.capture.v1 on the gateway returns (None: tcpdump is missing)
 
     def _event(self, sid, src, dst, port):
         ts = timezone.now().astimezone(timezone.get_fixed_timezone(180)).isoformat()
@@ -121,6 +122,13 @@ class Lab:
                         }
                         return ok({"attempts": out, "summary": summ})
                 if name == "nx-gateway":
+                    if action == "net.capture.v1":
+                        if lab.pcap is None:
+                            return AgentResponse(action=action, state="REJECTED", error_code="tool_missing")
+                        import base64
+
+                        return ok({"pcap_b64": base64.b64encode(lab.pcap).decode(), "captured": 240,
+                                   "dropped_by_kernel": 0, "truncated": False})  # fmt: skip
                     if action == "suricata.read_events.v1":
                         if lab.sensor == "unreadable":
                             return ok({"eve_available": False, "reason": "eve_unreadable", "events": []})
@@ -315,3 +323,38 @@ def test_load_requires_admin(client_as, operator, project, policy):
     r = client_as(operator).post(reverse("ids:protection_run", args=[project.id, "LOAD"]))
     assert r.status_code == 403
     assert not Job.objects.filter(type=JobType.PROTECTION_TEST).exists()
+
+
+def test_load_resilience_records_gateway_traffic(client_as, admin, project, policy, monkeypatch, settings, tmp_path):
+    """T-025: the gateway is recorded during the load; the burst is visible in the analysis, verdict unchanged."""
+    import shutil
+
+    from apps.pcap.models import PcapCapture
+    from apps.pcap.tests.test_pcap import make_pcap
+
+    if not shutil.which("tshark"):
+        pytest.skip("needs tshark")
+    settings.NIXFORT_DATA_DIR = tmp_path
+    lab = Lab()
+    lab.pcap = make_pcap([(1_800_000_000 + i * 0.002, "10.88.0.10", "10.99.0.10", 80 if i < 120 else 8080, True)
+                          for i in range(240)])  # fmt: skip
+    run_job(client_as, admin, reverse("ids:protection_run", args=[project.id, "LOAD"]), lab, monkeypatch)
+    t = ProtectionTest.objects.filter(scenario="LOAD").latest("created_at")
+    assert t.verdict == "PROTECTED"
+    assert ("nx-gateway", "net.capture.v1") in lab.calls
+    cap = PcapCapture.objects.get(job=t.job)
+    assert cap.state == "DONE" and cap.node.name == "nx-gateway" and cap.interface == "enp0s9"
+    c = t.details["capture"]
+    assert c["packets"] == 240 and c["peak_syn"] > 0 and "Всплеск попыток TCP-соединений" in c["findings"]
+    page = client_as(admin).get(reverse("ids:protection_detail", args=[project.id, t.id])).content.decode()
+    assert "Трафик на шлюзе во время проверки" in page and "<svg" in page and "полный разбор" in page
+
+
+def test_load_resilience_without_capture_keeps_verdict(client_as, admin, project, policy, monkeypatch):
+    lab = Lab()  # tcpdump missing on the gateway
+    run_job(client_as, admin, reverse("ids:protection_run", args=[project.id, "LOAD"]), lab, monkeypatch)
+    t = ProtectionTest.objects.filter(scenario="LOAD").latest("created_at")
+    assert t.verdict == "PROTECTED" and t.details["capture"]["state"] == "FAILED"
+    assert "tool_missing" in t.details["capture"]["error"]
+    page = client_as(admin).get(reverse("ids:protection_detail", args=[project.id, t.id])).content.decode()
+    assert "Запись трафика не получена" in page

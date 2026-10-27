@@ -4,6 +4,8 @@ from django.views.decorators.http import require_POST
 from apps.core.rbac import Perm, has_perm, perm_required
 from apps.execution import services as job_services
 from apps.execution.models import Job, JobType
+from apps.pcap import charts
+from apps.pcap.models import PcapCapture
 
 from .models import IdsEvent, ProtectionTest
 
@@ -87,4 +89,7 @@ def protection_run(request, project_id, scenario):
 @perm_required(Perm.VIEW_PROJECT)
 def protection_detail(request, project_id, test_id):
     t = get_object_or_404(ProtectionTest, id=test_id, project=request.project)
-    return render(request, "ids/protection_detail.html", {"project": request.project, "t": t})
+    cap_id = ((t.details or {}).get("capture") or {}).get("id")
+    cap = PcapCapture.objects.filter(id=cap_id, project=request.project).first() if cap_id else None
+    tl = charts.timeline_charts(cap.analysis) if cap and cap.state == PcapCapture.State.DONE else {}
+    return render(request, "ids/protection_detail.html", {"project": request.project, "t": t, "cap": cap, "tl": tl})

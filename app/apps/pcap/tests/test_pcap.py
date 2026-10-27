@@ -125,3 +125,21 @@ def test_capture_through_agent(client_as, operator, project, lab_nodes, admin, d
     client_as(operator).post(reverse("pcap:capture", args=[project.id]),
                              {"target": f"{gw.id}:eth9", "duration_s": 10, "profile": "all"})  # fmt: skip
     assert PcapCapture.objects.count() == 1
+
+
+@needs_tshark
+def test_connection_burst_is_a_finding_but_not_a_scan(data_dir):
+    burst = make_pcap(
+        [
+            (1_800_000_000 + i * 0.002, "10.88.0.10", "10.99.0.10", 80 if i % 2 else 8080, True) for i in range(150)
+        ]  # fmt: skip
+        + [(1_800_000_001 + i * 0.1, "10.88.0.20", "10.99.0.10", 80, True) for i in range(10)]
+    )
+    digest, _ = storage.store_bytes(burst)
+    f = analyzer.analyze(storage.path_of(digest))["findings"]
+    assert [x["kind"] for x in f] == ["conn_burst"]
+    assert f[0]["src"] == "10.88.0.10" and f[0]["value"] == 150 and "80, 8080" in f[0]["detail"]
+    # a real scan is reported as a scan, not additionally as a burst
+    many = make_pcap([(1_800_000_000 + i * 0.001, "10.88.0.10", "10.99.0.10", 1000 + i, True) for i in range(150)])
+    digest, _ = storage.store_bytes(many)
+    assert [x["kind"] for x in analyzer.analyze(storage.path_of(digest))["findings"]] == ["scan"]

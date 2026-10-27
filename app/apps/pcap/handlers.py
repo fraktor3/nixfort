@@ -21,10 +21,10 @@ def _log(job):
     return lambda m, lvl="INFO": job_services.log(job, m, lvl)
 
 
-def _fail(cap: PcapCapture, msg: str, log) -> tuple[str, dict]:
+def _fail(cap: PcapCapture, msg: str, log, level: str = "ERROR") -> tuple[str, dict]:
     cap.state, cap.error, cap.finished_at = PcapCapture.State.FAILED, msg[:300], timezone.now()
     cap.save(update_fields=["state", "error", "finished_at", "updated_at"])
-    log(msg, "ERROR")
+    log(msg, level)
     return JobState.FAILED, {"capture": str(cap.id), "error": msg}
 
 
@@ -62,14 +62,20 @@ def capture(job: Job):
         return _fail(cap, f"узел недоступен ({exc.code})", log)
     if not r.ok:
         return _fail(cap, f"захват не выполнен ({r.state} {r.error_code})", log)
+    return store_and_analyse(cap, r.result, log)
+
+
+def store_and_analyse(cap: PcapCapture, result: dict, log) -> tuple[str, dict]:
+    """Agent's net.capture.v1 result → file on disk (by SHA-256) → TShark analysis. Also used by the
+    load-resilience scenario, which records the gateway while the load runs."""
     try:
-        data = base64.b64decode(r.result.get("pcap_b64", ""), validate=True)
+        data = base64.b64decode(result.get("pcap_b64", ""), validate=True)
         sha, size = storage.store_bytes(data)
     except (binascii.Error, ValueError, storage.PcapRejected) as exc:
         return _fail(cap, f"данные захвата некорректны: {exc}", log)
-    cap.sha256, cap.size, cap.truncated = sha, size, bool(r.result.get("truncated"))
+    cap.sha256, cap.size, cap.truncated = sha, size, bool(result.get("truncated"))
     cap.save(update_fields=["sha256", "size", "truncated", "updated_at"])
-    log(f"получено {size} байт (захвачено пакетов: {r.result.get('captured')}), анализ…", "INFO")
+    log(f"получено {size} байт (захвачено пакетов: {result.get('captured')}), анализ…", "INFO")
     return _analyse(cap, log)
 
 
