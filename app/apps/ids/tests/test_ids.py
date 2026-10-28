@@ -286,7 +286,7 @@ def test_fetch_events_and_pages(client_as, operator, project, policy, monkeypatc
     run_job(client_as, operator, reverse("ids:fetch", args=[project.id]), lab, monkeypatch)  # nothing new
     assert IdsEvent.objects.count() == 1
     page = client_as(operator).get(reverse("ids:sensor", args=[project.id])).content.decode()
-    assert "NIXFORT 9000002" in page
+    assert "sid 9000002" in page and "NIXFORT" not in page  # rule prefix is not shown
     page = client_as(operator).get(reverse("ids:protection", args=[project.id])).content.decode()
     assert "Подбор пароля SSH" in page and "только администратор" in page
     assert ipaddress  # noqa

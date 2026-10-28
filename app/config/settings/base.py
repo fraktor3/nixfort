@@ -119,6 +119,9 @@ REDIS_URL = CELERY_BROKER_URL
 
 # NIXFORT
 NIXFORT_VERSION = "1.0.0"
+# Interface: no product name is shown unless one is set; the build id is shown on the login page.
+UI_PRODUCT_NAME = os.environ.get("UI_PRODUCT_NAME", "")
+BUILD_COMMIT = os.environ.get("BUILD_COMMIT", "")
 NIXFORT_CONTROLLER_KEY_PATH = os.environ.get("NIXFORT_CONTROLLER_KEY_PATH", "/run/secrets/controller_ed25519")
 NIXFORT_ROLLBACK_TIMEOUT_S = int(os.environ.get("NIXFORT_ROLLBACK_TIMEOUT_S", "90"))
 NIXFORT_INVENTORY_MAX_AGE_S = 15 * 60

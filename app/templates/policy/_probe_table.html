@@ -1,11 +1,10 @@
-{% load nx %}<div class="table-wrap"><table class="table">
-  <thead><tr><th class="first">Поток</th><th>Ожидание</th><th>Откуда и куда</th><th>Проба с узла</th><th>Результат</th><th class="last">Вывод</th></tr></thead>
+{% load nx %}<div class="tw"><table class="t stack">
+  <thead><tr><th>Поток</th><th>Откуда и куда</th><th class="p2">Проба с узла</th><th>Результат</th><th>Вывод</th></tr></thead>
   <tbody>{% for r in rows %}<tr>
-    <td class="first">{{ r.flow_name }}{% if r.critical %} <span class="tag crit">критичный</span>{% endif %}</td>
-    <td>{% if r.action == 'ALLOW' %}работает{% else %}заблокирован{% endif %}</td>
-    <td class="mono small">{{ r.src_cidr }} → {{ r.dst_ip }}:{{ r.port }}</td>
-    <td class="mono">{{ r.probe_node|default:"–" }}</td>
+    <td>{{ r.flow_name }}{% if r.critical %} <span class="tag crit">критичный</span>{% endif %}<span class="sub">{% if r.action == 'ALLOW' %}должен работать{% else %}должен блокироваться{% endif %}</span></td>
+    <td class="mono xs">{{ r.src_cidr }} → {{ r.dst_ip }}:{{ r.port }}</td>
+    <td class="mono p2">{{ r.probe_node|default:"–" }}</td>
     <td class="mono">{{ r.result }}{% if r.latency_ms is not None %}<span class="sub">{{ r.latency_ms }} мс</span>{% endif %}</td>
-    <td class="last"><span class="st {{ r.verdict|st }}">{{ r.get_verdict_display }}</span>{% if r.note %}<span class="sub">{{ r.note }}</span>{% endif %}</td></tr>
-  {% empty %}<tr><td colspan="6" class="empty">Проб нет.</td></tr>{% endfor %}</tbody>
+    <td><span class="st {{ r.verdict|st }}">{{ r.get_verdict_display }}</span>{% if r.note %}<span class="sub">{{ r.note|nb }}</span>{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="5" class="empty">Проб нет.</td></tr>{% endfor %}</tbody>
 </table></div>

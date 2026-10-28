@@ -1,43 +1,40 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}Трафик · {{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><div class="crumbs"><a href="{% url 'pcap:list' project.id %}">Анализ трафика</a></div>
-    <div class="title-line"><h1>{{ r.get_source_display }}</h1><span class="st {{ r.state|st }}">{{ r.get_state_display }}</span></div>
-    <div class="sub"><span class="mono">{{ r.origin }}</span> · {{ r.created_at|date:"d.m.Y H:i:s" }} · {{ r.created_by|default:"система" }}{% if r.job %} · <a href="{% url 'execution:job_detail' project.id r.job_id %}">журнал задания</a>{% endif %}{% if r.sha256 %} · SHA-256 <span class="mono">{{ r.sha256|slice:":16" }}…</span>{% endif %}</div></div>
+<div class="head">
+  <div><div class="crumbs"><a href="{% url 'pcap:list' project.id %}">Трафик</a></div>
+    <div class="t1"><h1>{{ r.get_source_display }}</h1>{% if r.state != "DONE" %}<span class="st {{ r.state|st }}">{{ r.get_state_display }}</span>{% endif %}</div>
+    <div class="meta"><span class="mono">{{ r.origin }}</span><span>{{ r.created_at|full }}</span><span>{{ r.created_by|default:"система" }}</span>{% if r.job %}<span><a href="{% url 'execution:job_detail' project.id r.job_id %}">журнал задания</a></span>{% endif %}{% if r.sha256 %}<span>SHA-256 <span class="mono copy" data-copy="{{ r.sha256 }}">{{ r.sha256|slice:":16" }}…</span></span>{% endif %}</div></div>
   {% if can_download and r.sha256 %}<div class="actions"><a class="btn" href="{% url 'pcap:download' project.id r.id %}">Скачать .pcap</a></div>{% endif %}
 </div>
 {% if r.state == "FAILED" %}<div class="note bad">{{ r.error }}</div>
 {% elif r.state != "DONE" %}<div class="note">Обрабатывается…</div>
 {% else %}{% with d=r.analysis %}
-<div class="figures">
-  <div><div class="label">Пакетов</div><div class="value">{{ d.packets }}</div></div>
-  <div><div class="label">Новых TCP-соединений</div><div class="value">{{ d.tcp_new_connections }}</div></div>
-  <div><div class="label">Объём заголовков</div><div class="value">{{ d.bytes|filesizeformat }}</div></div>
-  <div><div class="label">Длительность</div><div class="value">{{ d.duration_s }} <small>с</small></div></div>
-  <div><div class="label">Находки</div><div class="value">{% if d.findings %}<span class="st big s-fail">{{ d.findings|length }}</span>{% else %}0{% endif %}</div></div>
-</div>
-{% if d.findings %}<section class="panel section-gap"><div class="panel-head"><h2>Находки</h2><span class="meta">признаки определяются по характеру трафика и требуют проверки</span></div>
-  <table class="table"><tbody>{% for f in d.findings %}<tr><td class="first nowrap"><span class="st s-fail">{{ f.title }}</span></td><td class="last">{{ f.detail }}</td></tr>{% endfor %}</tbody></table></section>{% endif %}
-{% if tl.packets %}<div class="grid g-1-1 section-gap">
-  <section class="panel"><div class="panel-body">{{ tl.packets|safe }}</div></section>
-  <section class="panel"><div class="panel-body">{{ tl.bytes|safe }}</div></section>
+<div class="tw"><dl class="kv kv-row">
+  <dt>Пакетов</dt><dd>{{ d.packets }}</dd><dt>Новых TCP-соединений</dt><dd>{{ d.tcp_new_connections }}</dd>
+  <dt>Объём заголовков</dt><dd>{{ d.bytes|filesizeformat }}</dd><dt>Длительность</dt><dd>{{ d.duration_s }} с</dd>
+  <dt>Находки</dt><dd>{% if d.findings %}<span class="st s-fail">{{ d.findings|length }}</span>{% else %}0{% endif %}</dd>
+</dl></div>
+{% if d.findings %}<section class="sec"><div class="sec-h"><h2>Находки</h2><div class="tools"><span class="muted">по характеру трафика, требуют проверки</span></div></div>
+  <div class="tw"><table class="t stack"><tbody>{% for f in d.findings %}<tr><td class="nowrap"><span class="st s-fail">{{ f.title }}</span></td><td>{{ f.detail }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+{% if tl.packets %}<div class="cols even mt-24">
+  <div class="box box-body">{{ tl.packets|safe }}</div>
+  <div class="box box-body">{{ tl.bytes|safe }}</div>
 </div>{% endif %}
-<div class="grid g-1-1 stretch section-gap">
-  <section class="panel"><div class="panel-head"><h2>Протоколы</h2></div>
-    <table class="table"><thead><tr><th class="first">Протокол</th><th class="num">Пакетов</th><th class="num last">Байт</th></tr></thead><tbody>
-    {% for p in d.protocols %}<tr><td class="first">{{ p.protocol }}</td><td class="num">{{ p.frames }}</td><td class="num last">{{ p.bytes }}</td></tr>{% endfor %}</tbody></table></section>
-  <section class="panel"><div class="panel-head"><h2>Порты служб</h2></div>
-    <table class="table"><thead><tr><th class="first">Порт</th><th class="num last">Пакетов</th></tr></thead><tbody>
-    {% for p in d.ports %}<tr><td class="first mono">{{ p.proto }}/{{ p.port }}</td><td class="num last">{{ p.frames }}</td></tr>
-    {% empty %}<tr><td colspan="2" class="empty">Нет.</td></tr>{% endfor %}</tbody></table></section>
-  <section class="panel"><div class="panel-head"><h2>Активные адреса</h2></div>
-    <table class="table"><thead><tr><th class="first">Адрес</th><th class="num">Пакетов</th><th class="num last">Байт</th></tr></thead><tbody>
-    {% for t in d.top_sources %}<tr><td class="first mono">{{ t.ip }}{% if not t.is_private %} <span class="tag">внешний</span>{% endif %}</td><td class="num">{{ t.frames }}</td><td class="num last">{{ t.bytes }}</td></tr>{% endfor %}</tbody></table></section>
-  <section class="panel"><div class="panel-head"><h2>Соединения</h2></div>
-    <table class="table"><thead><tr><th class="first">Между адресами</th><th class="num">Пакетов</th><th class="num last">Байт</th></tr></thead><tbody>
-    {% for c in d.conversations %}<tr><td class="first mono">{{ c.a }} ↔ {{ c.b }}</td><td class="num">{{ c.frames }}</td><td class="num last">{{ c.bytes }}</td></tr>{% endfor %}</tbody></table></section>
+<div class="cols even mt-24">
+  <section class="sec"><div class="sec-h"><h2>Протоколы</h2></div>
+    <div class="tw"><table class="t tight"><thead><tr><th data-sort>Протокол</th><th class="num" data-sort="num">Пакетов</th><th class="num" data-sort="num">Байт</th></tr></thead><tbody>
+    {% for p in d.protocols %}<tr><td>{{ p.protocol }}</td><td class="num">{{ p.frames }}</td><td class="num">{{ p.bytes }}</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="sec"><div class="sec-h"><h2>Порты служб</h2></div>
+    <div class="tw"><table class="t tight"><thead><tr><th>Порт</th><th class="num" data-sort="num">Пакетов</th></tr></thead><tbody>
+    {% for p in d.ports %}<tr><td class="mono">{{ p.proto }}/{{ p.port }}</td><td class="num">{{ p.frames }}</td></tr>
+    {% empty %}<tr><td colspan="2" class="empty">Нет.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="sec"><div class="sec-h"><h2>Активные адреса</h2></div>
+    <div class="tw"><table class="t tight"><thead><tr><th>Адрес</th><th class="num" data-sort="num">Пакетов</th><th class="num" data-sort="num">Байт</th></tr></thead><tbody>
+    {% for t in d.top_sources %}<tr><td class="mono">{{ t.ip }}{% if not t.is_private %} <span class="tag">внешний</span>{% endif %}</td><td class="num">{{ t.frames }}</td><td class="num">{{ t.bytes }}</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="sec"><div class="sec-h"><h2>Соединения</h2></div>
+    <div class="tw"><table class="t tight"><thead><tr><th>Между адресами</th><th class="num" data-sort="num">Пакетов</th><th class="num" data-sort="num">Байт</th></tr></thead><tbody>
+    {% for c in d.conversations %}<tr><td class="mono">{{ c.a }} ↔ {{ c.b }}</td><td class="num">{{ c.frames }}</td><td class="num">{{ c.bytes }}</td></tr>{% endfor %}</tbody></table></div></section>
 </div>
-<p class="limits">Запись содержит только заголовки пакетов: содержимое соединений не сохраняется.</p>
 {% endwith %}{% endif %}
 {% endblock %}

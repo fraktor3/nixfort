@@ -1,33 +1,32 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Обзор · NIXFORT{% endblock %}
+{% block title %}Обзор{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><h1>Обзор</h1><div class="sub">Проекты, к которым у вас есть доступ, и последние задания по ним.</div></div>
+<div class="head">
+  <div><h1>Обзор</h1><div class="meta"><span>проектов {{ rows|length }}</span></div></div>
   <div class="actions">{% if can_create_project %}<a class="btn primary" href="{% url 'inventory:project_create' %}">Новый проект</a>{% endif %}</div>
 </div>
-<section class="panel" aria-labelledby="h-projects">
-  <div class="panel-head"><h2 id="h-projects">Проекты</h2><span class="meta">{{ rows|length }}</span></div>
-  <div class="table-wrap"><table class="table">
-    <thead><tr><th class="first">Проект</th><th>Подсети</th><th class="num">Узлов</th><th>Последний аудит</th><th class="num">Нарушений</th><th>Последнее задание</th><th class="last">Состояние</th></tr></thead>
+<section class="sec" aria-labelledby="h-projects">
+  <div class="sec-h"><h2 id="h-projects">Проекты</h2></div>
+  <div class="tw"><table class="t stack" id="t-projects" data-keys>
+    <thead><tr><th data-sort>Проект</th><th class="p2">Подсети</th><th class="num" data-sort="num">Узлов</th><th>Последний аудит</th><th class="num" data-sort="num">Нарушений</th><th class="p3">Последнее задание</th><th>Состояние</th></tr></thead>
     <tbody>{% for r in rows %}<tr>
-      <td class="first"><a href="{% url 'inventory:project_detail' r.p.id %}">{{ r.p.name }}</a>{% if r.drafts %}<span class="sub">план ждёт утверждения</span>{% endif %}</td>
-      <td class="mono">{{ r.p.cidrs|join:", " }}</td>
-      <td class="num">{{ r.nodes }}</td>
-      <td>{% if r.run %}<a href="{% url 'checks:run_detail' r.p.id r.run.id %}">{{ r.run.created_at|date:"d.m.Y H:i" }}</a>{% else %}<span class="muted">не выполнялся</span>{% endif %}</td>
-      <td class="num">{% if r.run %}{% if r.fail %}<span class="st s-fail">{{ r.fail }}</span>{% else %}0{% endif %}{% else %}<span class="muted">–</span>{% endif %}</td>
-      <td>{% if r.last %}{{ r.last|job_label }}<span class="sub">{{ r.last.created_at|date:"d.m.Y H:i" }} · {{ r.last.get_state_display|lower }}</span>{% else %}<span class="muted">–</span>{% endif %}</td>
-      <td class="last"><span class="st {{ r.p.status|st }}">{{ r.p.get_status_display }}</span></td></tr>
-    {% empty %}<tr><td colspan="7" class="empty">Нет доступных проектов.{% if can_create_project %} Создайте проект: укажите подсети сегмента и адрес контроллера.{% else %} Попросите администратора назначить вам роль в проекте.{% endif %}</td></tr>{% endfor %}</tbody>
+      <td><a href="{% url 'inventory:project_detail' r.p.id %}">{{ r.p.name }}</a>{% if r.drafts %}<span class="sub">план ждёт утверждения</span>{% endif %}</td>
+      <td class="mono p2" title="{{ r.p.cidrs|join:', ' }}">{{ r.p.cidrs|short_cidrs }}</td>
+      <td class="num" data-l="узлов">{{ r.nodes }}</td>
+      <td data-l="аудит">{% if r.run %}<a class="plain" href="{% url 'checks:run_detail' r.p.id r.run.id %}" title="{{ r.run.created_at|full }}">{{ r.run.created_at|when }}</a>{% else %}<span class="muted">не выполнялся</span>{% endif %}</td>
+      <td class="num" data-v="{{ r.fail|default:0 }}" data-l="нарушений">{% if r.run %}{% if r.fail %}<span class="st s-fail">{{ r.fail }}</span>{% else %}0{% endif %}{% else %}<span class="muted">–</span>{% endif %}</td>
+      <td class="p3">{% if r.last %}{{ r.last|job_label }}<span class="sub" title="{{ r.last.created_at|full }}">{{ r.last.created_at|when }} · <span class="st {{ r.last.state|st }}">{{ r.last.get_state_display|lower }}</span></span>{% else %}<span class="muted">–</span>{% endif %}</td>
+      <td><span class="st {{ r.p.status|st }}">{{ r.p.get_status_display }}</span></td></tr>
+    {% empty %}<tr><td colspan="7" class="empty">Нет доступных проектов.{% if not can_create_project %} Роль в проекте назначает администратор.{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
 </section>
-<section class="panel section-gap" aria-labelledby="h-jobs">
-  <div class="panel-head"><h2 id="h-jobs">Последние задания</h2></div>
-  <div class="table-wrap"><table class="table">
-    <thead><tr><th class="first">Задание</th><th>Проект</th><th>Узел</th><th>Состояние</th><th class="num last">Создано</th></tr></thead>
-    <tbody>{% for j in jobs %}<tr><td class="first"><a href="{% url 'execution:job_detail' j.project_id j.id %}">{{ j|job_label }}</a></td><td>{{ j.project.name }}</td>
-      <td class="mono">{{ j.node.name|default:"–" }}</td><td><span class="st {{ j.state|st }}">{{ j.get_state_display }}</span></td><td class="num last">{{ j.created_at|date:"d.m.Y H:i:s" }}</td></tr>
-    {% empty %}<tr><td colspan="5" class="empty">Заданий пока нет.</td></tr>{% endfor %}</tbody>
+<section class="sec" aria-labelledby="h-jobs">
+  <div class="sec-h"><h2 id="h-jobs">Последние задания</h2></div>
+  <div class="tw"><table class="t stack">
+    <thead><tr><th>Задание</th><th>Проект</th><th class="p2">Узел</th><th>Состояние</th><th class="num">Создано</th></tr></thead>
+    <tbody>{% for j in jobs %}<tr><td><a href="{% url 'execution:job_detail' j.project_id j.id %}">{{ j|job_label }}</a></td><td>{{ j.project.name }}</td>
+      <td class="mono p2{% if not j.node %} hide-s{% endif %}">{{ j.node.name|default:"–" }}</td><td><span class="st {{ j.state|st }}">{{ j.get_state_display }}</span></td><td class="num" title="{{ j.created_at|full }}">{{ j.created_at|when }}</td></tr>
+    {% empty %}<tr><td colspan="5" class="empty">Заданий нет.</td></tr>{% endfor %}</tbody>
   </table></div>
 </section>
-<p class="limits">NIXFORT показывает только проверенное. Статус «Нет данных» не означает «безопасно», а индикатора «сеть защищена» нет намеренно: каждый вывод опирается на собранные с узлов факты.</p>
 {% endblock %}

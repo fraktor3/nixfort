@@ -1,16 +1,15 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Сетевые тесты · {{ project.name }}{% endblock %}
+{% block title %}Проверка соединений · {{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="head">
   <div><div class="crumbs"><a href="{% url 'policy:overview' project.id %}">Политика соединений</a></div><h1>Проверка соединений</h1>
-    <div class="sub">Реальные TCP-подключения с тестовых узлов по каждому потоку активной политики{% if active %} v{{ active.version }}{% endif %}. OPEN: соединение установлено. TIMEOUT: ответа нет, так обычно выглядит запрет межсетевым экраном. CLOSED: порт закрыт. Ошибка пробы никогда не считается успехом.</div></div>
+    <div class="meta"><span>реальные TCP-подключения по каждому потоку{% if active %} политики v{{ active.version }}{% endif %}</span><span title="OPEN: соединение установлено. TIMEOUT: ответа нет, обычно так выглядит запрет экраном. CLOSED: порт закрыт. Ошибка пробы не считается успехом.">OPEN · TIMEOUT · CLOSED</span></div></div>
   <div class="actions">{% if can_run and active %}<form method="post" action="{% url 'policy:connectivity_run' project.id %}">{% csrf_token %}<button class="btn primary">Проверить соединения</button></form>{% endif %}</div>
 </div>
-{% if not active %}<div class="note warn">В проекте нет активной политики соединений, проверять нечего.</div>{% endif %}
-{% if selected %}<section class="panel"><div class="panel-head"><div class="title-line"><h2>Проверка {{ selected.created_at|date:"d.m.Y H:i:s" }}</h2><span class="st {{ selected.state|st }}">{{ selected.get_state_display }}</span></div>
-  <a class="meta" href="{% url 'execution:job_detail' project.id selected.id %}">журнал задания</a></div>
+{% if not active %}<div class="note">Активной политики нет: проверять нечего.</div>{% endif %}
+{% if selected %}<section class="sec">
+  <div class="sec-h"><h2>{{ selected.created_at|full }}</h2><div class="tools">{% if selected.state != "SUCCEEDED" %}<span class="st {{ selected.state|st }}">{{ selected.get_state_display }}</span>{% endif %}<a href="{% url 'execution:job_detail' project.id selected.id %}">журнал задания</a></div></div>
   {% include "policy/_probe_table.html" %}</section>{% endif %}
-{% if jobs|length > 1 %}<section class="panel section-gap"><div class="panel-head"><h2>Предыдущие проверки</h2></div>
-  <table class="table"><tbody>{% for j in jobs %}<tr><td class="first"><a href="?job={{ j.id }}">{{ j.created_at|date:"d.m.Y H:i:s" }}</a></td><td class="last"><span class="st {{ j.state|st }}">{{ j.get_state_display }}</span></td></tr>{% endfor %}</tbody></table></section>{% endif %}
-<p class="limits">Пробы до и после изменения межсетевого экрана сохраняются в плане исправлений.</p>
+{% if jobs|length > 1 %}<section class="sec"><div class="sec-h"><h2>Предыдущие</h2></div>
+  <div class="tw"><table class="t tight"><tbody>{% for j in jobs %}<tr><td><a class="plain" href="?job={{ j.id }}">{{ j.created_at|full }}</a></td><td class="num"><span class="st {{ j.state|st }}">{{ j.get_state_display }}</span></td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
 {% endblock %}

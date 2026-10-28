@@ -2,32 +2,65 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false}'>
   <link rel="icon" href="{% static 'img/mark.svg' %}" type="image/svg+xml">
-  <title>{% block title %}NIXFORT{% endblock %}</title>
+  <title>{% block title %}Обзор{% endblock %}{% if ui_name %} · {{ ui_name }}{% endif %}</title>
   <link rel="preload" href="{% static 'vendor/fonts/ibm-plex-sans-cyrillic-400-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
-<body>
 {% if user.is_authenticated %}
-<div class="shell">
+<body{% if nav_project %} data-go-o="{% url 'inventory:project_detail' nav_project.id %}" data-go-a="{% url 'checks:run_list' nav_project.id %}" data-go-j="{% url 'execution:job_list' nav_project.id %}" data-go-r="{% url 'remediation:plan_list' nav_project.id %}"{% else %} data-go-o="{% url 'core:dashboard' %}" data-go-p="{% url 'inventory:project_list' %}"{% endif %}>
+<a class="skip" href="#main">К содержимому</a>
+<div class="app">
   <aside class="side" aria-label="Навигация">{% include "core/_nav.html" %}</aside>
-  <div class="canvas">
+  <div class="main">
     <header class="topbar">
-      <a class="brand" href="{% url 'core:dashboard' %}">{% include "core/_mark.html" %}<span class="sr-only">NIXFORT</span></a>
-      <span class="here">{% if nav_project %}{{ nav_project.name }}{% else %}NIXFORT{% endif %}</span>
-      <details class="menu"><summary>Меню</summary><div class="sheet">{% include "core/_nav.html" %}</div></details>
+      <span class="here">{% if nav_project %}{{ nav_project.name }}{% else %}{% block here %}Обзор{% endblock %}{% endif %}</span>
+      <button type="button" class="jump-btn" data-jump>Перейти</button>
     </header>
-    <main class="canvas-inner">
-      {% if messages %}<div class="messages" role="status">{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}</div>{% endif %}
+    <main class="page" id="main">
+      {% if messages %}<div class="msgs" role="status">{% for m in messages %}<div class="msg {{ m.tags }}">{{ m }}</div>{% endfor %}</div>{% endif %}
       {% block content %}{% endblock %}
     </main>
   </div>
 </div>
+<nav class="tabbar" aria-label="Разделы">
+  {% for t in nav_tabs %}<a href="{{ t.url }}"{% if t.current %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
+  <details><summary>Меню</summary><div class="sheet">{% include "core/_nav.html" with in_sheet=True %}</div></details>
+</nav>
+
+<dialog id="jump" class="jump" aria-label="Быстрый переход">
+  <input type="search" placeholder="Раздел, узел, проверка или проект" aria-label="Что открыть" autocomplete="off">
+  <ul>{% for j in jump %}<li><a href="{{ j.url }}"><span>{{ j.label }}</span><span class="k">{{ j.kind }}</span></a></li>{% endfor %}</ul>
+  <div class="none" hidden>Ничего не найдено.</div>
+  <div class="foot"><span><kbd>↑</kbd> <kbd>↓</kbd> выбор</span><span><kbd>Enter</kbd> открыть</span><span><kbd>Esc</kbd> закрыть</span></div>
+</dialog>
+<dialog id="keys" class="keys" aria-label="Клавиши">
+  <h2>Клавиши <button type="button" class="link" data-close>закрыть</button></h2>
+  <dl>
+    <dt><kbd>/</kbd></dt><dd>быстрый переход</dd>
+    <dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>следующая и предыдущая строка таблицы</dd>
+    <dt><kbd>Enter</kbd></dt><dd>открыть выбранную строку</dd>
+    {% if nav_project %}<dt><kbd>g</kbd> <kbd>o</kbd></dt><dd>обзор проекта</dd>
+    <dt><kbd>g</kbd> <kbd>a</kbd></dt><dd>аудит</dd>
+    <dt><kbd>g</kbd> <kbd>r</kbd></dt><dd>исправления</dd>
+    <dt><kbd>g</kbd> <kbd>j</kbd></dt><dd>задания</dd>{% else %}<dt><kbd>g</kbd> <kbd>o</kbd></dt><dd>обзор</dd>
+    <dt><kbd>g</kbd> <kbd>p</kbd></dt><dd>проекты</dd>{% endif %}
+    <dt><kbd>Esc</kbd></dt><dd>закрыть панель или окно</dd>
+    <dt><kbd>?</kbd></dt><dd>эта справка</dd>
+  </dl>
+</dialog>
+<div id="veil" class="veil" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-label="Подробности">
+  <div class="drawer-h"><b class="drawer-title"></b><span class="row"><a class="drawer-full small" href="#">Открыть страницей</a><button type="button" class="btn sm drawer-close">Закрыть</button></span></div>
+  <div class="drawer-b"></div>
+</aside>
 {% else %}
-{% block public %}<main class="canvas"><div class="canvas-inner">{% block public_content %}{% endblock %}</div></main>{% endblock %}
+<body>
+{% block public %}<main class="public">{% block public_content %}{% endblock %}</main>{% endblock %}
 {% endif %}
 <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+<script src="{% static 'js/app.js' %}"></script>
 </body>
 </html>

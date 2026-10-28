@@ -42,5 +42,11 @@ SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 NIXFORT_REDIS_LOCKS = True
 
+# Static files get a content hash in their names: after an update the browser loads the new CSS at once.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "apps.core.storage.HashedStaticStorage"},
+}
+
 # nginx terminates TLS and redirects 80->443; the app is reached by IP (no subdomains, no preload list).
 SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W008", "security.W021"]

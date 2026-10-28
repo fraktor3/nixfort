@@ -173,7 +173,7 @@ def _ids_drafts(node, ids: set[str], packages: dict) -> tuple[list[Draft], list[
             },
             "MEDIUM",
             True,
-            f"Датчик Suricata на интерфейсе {node.ids_interface}: журнал EVE, правила NIXFORT "
+            f"Датчик Suricata на интерфейсе {node.ids_interface}: журнал EVE, тестовые правила "
             "(тестовый маркер, сканирование портов, подбор пароля SSH)",
         )
     )

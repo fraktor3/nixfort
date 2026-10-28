@@ -1,36 +1,36 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Аудит {{ run.created_at|date:"d.m.Y H:i" }} · {{ project.name }}{% endblock %}
+{% block title %}Аудит {{ run.created_at|date:"d.m H:i" }} · {{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="head">
   <div><div class="crumbs"><a href="{% url 'checks:run_list' project.id %}">Аудит</a></div>
-    <div class="title-line"><h1>Аудит {{ run.created_at|date:"d.m.Y H:i:s" }}</h1><span class="st {{ run.state|st }}">{{ run.get_state_display }}</span></div>
-    <div class="sub">{% if run.purpose == "post_change" %}Повторный аудит после изменений{% else %}Исходный аудит{% endif %} · каталог {{ run.catalog_version }} · политика {% if run.policy_version %}v{{ run.policy_version }}{% else %}не задана{% endif %}{% if run.initiated_by %} · запустил {{ run.initiated_by }}{% endif %}</div></div>
+    <div class="t1"><h1>Аудит {{ run.created_at|full }}</h1>{% if run.state != "DONE" %}<span class="st {{ run.state|st }}">{{ run.get_state_display }}</span>{% endif %}</div>
+    <div class="meta"><span>{% if run.purpose == "post_change" %}после изменений{% else %}исходный{% endif %}</span><span>каталог {{ run.catalog_version }}</span><span>политика {% if run.policy_version %}v{{ run.policy_version }}{% else %}не задана{% endif %}</span>{% if run.initiated_by %}<span>{{ run.initiated_by }}</span>{% endif %}{% if hidden %}<span>без проверок: {{ hidden|join:", " }}</span>{% endif %}</div></div>
 </div>
-{% include "checks/_totals.html" %}
 
 {% if can_plan and total.FAIL %}
-<form method="post" action="{% url 'remediation:plan_create' project.id run.id %}" class="approve section-gap">{% csrf_token %}
-  <div class="row-flex between">
-    <label class="check mb-0"><input type="checkbox" name="key_only_confirmed" id="ko"><span>Вход администраторов по SSH-ключу проверен, вход по паролю можно отключить (SSH-02)</span></label>
-    <button class="btn primary">Сформировать план исправлений</button>
-  </div>
+<form method="post" action="{% url 'remediation:plan_create' project.id run.id %}" class="confirm-line mb-16">{% csrf_token %}
+  <label class="check"><input type="checkbox" name="key_only_confirmed" id="ko"><span>Вход администраторов по ключу проверен, пароль по SSH можно отключить (SSH-02)</span></label>
+  <button class="btn primary">Сформировать план исправлений</button>
 </form>{% endif %}
 
-<section class="panel section-gap" aria-labelledby="h-res">
-  <div class="panel-head"><h2 id="h-res">Результаты проверок</h2><span class="meta">нажмите на результат, чтобы увидеть доказательства</span></div>
-  <div class="table-wrap"><table class="table">
-    <thead><tr><th class="first">Проверка</th><th>Важность</th>{% for n in nodes %}<th class="mono">{{ n.name }}</th>{% endfor %}</tr></thead>
-    <tbody>{% for row in rows %}
-      {% if row.group %}<tr class="group"><td colspan="{{ nodes|length|add:2 }}" class="first">{{ row.group }}</td></tr>{% endif %}
-      <tr><td class="first"><span class="id">{{ row.check.id }}</span> {{ row.check.title }}</td><td class="small">{{ row.check.severity|severity_ru }}</td>
-      {% for c in row.cells %}<td>{% if c %}{% if c.status == "NOT_APPLICABLE" %}<span class="muted small">не применимо</span>{% else %}<a class="st {{ c.status|st }}" href="{% url 'checks:result_detail' project.id run.id c.id %}" title="{{ c.explanation }}">{{ c.get_status_display }}</a>{% endif %}{% endif %}</td>{% endfor %}</tr>
-    {% endfor %}</tbody>
-  </table></div>
-  {% if hidden %}<div class="panel-foot muted">{{ hidden|join:", " }}: проверки не применяются к роли узла.</div>{% endif %}
-</section>
-<div class="explain explain-row section-gap">
-  <div><b>Нарушение.</b> Несоответствие подтверждено данными с узла.</div>
-  <div><b>Нет данных.</b> Данных недостаточно для вывода. Это не означает «безопасно».</div>
-  <div><b>Ошибка проверки.</b> Данные не удалось собрать: узел или агент ответил ошибкой.</div>
+<div class="tbar">
+  <div class="seg" data-for="t-res" data-default="{% if total.FAIL %}FAIL{% else %}all{% endif %}" role="group" aria-label="Показать" hidden>
+    <button type="button" data-f="FAIL">Нарушения <span class="c{% if total.FAIL %} bad{% else %} zero{% endif %}">{{ total.FAIL|default:0 }}</span></button>
+    <button type="button" data-f="UNKNOWN" title="Данных недостаточно для вывода. Это не означает «безопасно».">Нет данных <span class="c{% if not total.UNKNOWN %} zero{% endif %}">{{ total.UNKNOWN|default:0 }}</span></button>
+    <button type="button" data-f="ERROR" title="Данные не удалось собрать: узел или агент ответил ошибкой.">Ошибки <span class="c{% if not total.ERROR %} zero{% endif %}">{{ total.ERROR|default:0 }}</span></button>
+    <button type="button" data-f="PASS">Соответствует <span class="c{% if not total.PASS %} zero{% endif %}">{{ total.PASS|default:0 }}</span></button>
+    <button type="button" data-f="all">Все</button>
+  </div>
+  <input type="search" class="filter" data-for="t-res" placeholder="Фильтр: код, название" aria-label="Фильтр проверок" hidden>
+  <span class="xs muted">не применимо к роли узла: {{ total.NOT_APPLICABLE|default:0 }}</span>
 </div>
+<div class="tw"><table class="t stack" id="t-res" data-keys>
+  <thead><tr><th>Проверка</th><th class="p2">Важность</th>{% for n in nodes %}<th class="mono">{{ n.name }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for row in rows %}
+    {% if row.group %}<tr class="group"><td colspan="{{ nodes|length|add:2 }}">{{ row.group }}</td></tr>{% endif %}
+    <tr data-s="{% for c in row.cells %}{% if c %}{{ c.status }} {% endif %}{% endfor %}"><td><span class="id">{{ row.check.id }}</span>{{ row.check.title|nb }}</td><td class="small p2">{{ row.check.severity|severity_ru }}</td>
+    {% for c in row.cells %}<td{% if not c or c.status == "NOT_APPLICABLE" %} class="hide-s"{% else %} data-l="{{ c.node.name }}"{% endif %}>{% if c %}{% if c.status == "NOT_APPLICABLE" %}<span class="muted">–</span>{% else %}<a class="st {{ c.status|st }}" href="{% url 'checks:result_detail' project.id run.id c.id %}" data-drawer="{{ row.check.id }} · {{ c.node.name }}" title="{{ c.explanation|nb }}"><span class="sr-only">{{ c.node.name }}: </span>{{ c.get_status_display }}</a>{% endif %}{% endif %}</td>{% endfor %}</tr>
+  {% endfor %}</tbody>
+</table></div>
+<div class="box empty mt-8" data-none="t-res" hidden>Под фильтр ничего не попало.</div>
 {% endblock %}

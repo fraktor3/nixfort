@@ -84,7 +84,7 @@ def report_detail(request, project_id, report_id):
 @perm_required(Perm.EXPORT_REPORT)
 def report_download(request, project_id, report_id, fmt):
     report = get_object_or_404(Report, id=report_id, project=request.project)
-    name = f"nixfort-report-{report.created_at:%Y%m%d-%H%M}"
+    name = f"security-report-{report.created_at:%Y%m%d-%H%M}"
     if fmt == "json":
         body = builder.canonical(report.data)
         if builder.digest(report.data) != report.sha256:  # stored data was altered behind our back

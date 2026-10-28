@@ -1,52 +1,56 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}{{ node.name }} · {{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="head">
   <div><div class="crumbs"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a> / узлы</div>
-    <div class="title-line"><h1 class="mono">{{ node.name }}</h1><span class="st {{ node.status|st }}">{{ node.get_status_display }}</span></div>
-    <div class="sub">{{ node.roles|role_names }} · {{ node.get_expected_os_display }}</div></div>
+    <div class="t1"><h1 class="mono">{{ node.name }}</h1><span class="st {{ node.status|st }}">{{ node.get_status_display }}</span></div>
+    <div class="meta"><span>{{ node.roles|role_names }}</span><span>{{ node.get_expected_os_display }}</span><span class="mono copy">{{ node.mgmt_ip }}</span></div></div>
   <div class="actions">{% if can_edit %}<a class="btn" href="{% url 'inventory:node_edit' project.id node.id %}">Изменить</a>{% endif %}
     {% if can_run %}<form method="post" action="{% url 'inventory:node_inventory_run' project.id node.id %}">{% csrf_token %}<button class="btn primary" {% if not node.confirmed_hostkey %}disabled title="Сначала подтвердите ключ узла"{% endif %}>Инвентаризация</button></form>{% endif %}</div>
 </div>
 
-<div class="grid g-1-2">
-  <div class="stack">
-    <section class="panel" aria-labelledby="h-addr"><div class="panel-head"><h2 id="h-addr">Адреса и роль</h2></div>
-      <div class="panel-body"><table class="kv">
-        <tr><th>Управление (SSH)</th><td class="mono">{{ node.mgmt_ip }}:{{ node.ssh_port }}</td></tr>
-        <tr><th>Рабочие адреса</th><td class="mono">{{ node.data_ips|join:", "|default:"–" }}</td></tr>
-        <tr><th>Роли</th><td>{{ node.roles|role_names }}</td></tr>
-        <tr><th>Ожидаемые порты</th><td class="mono">{{ node.expected_tcp_ports|join:", "|default:"–" }}</td></tr>
-        {% if node.ids_interface %}<tr><th>Интерфейс датчика</th><td class="mono">{{ node.ids_interface }}</td></tr>{% endif %}
-      </table></div></section>
+{% if hostkey and not hostkey.confirmed_at %}<div class="note mb-16">Ключ узла не подтверждён: операции с узлом запрещены. Сверьте отпечаток с выводом <span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span> на узле.</div>{% endif %}
 
-    <section class="panel" aria-labelledby="h-key"><div class="panel-head"><h2 id="h-key">SSH-ключ узла</h2>
-      {% if hostkey and hostkey.confirmed_at %}<span class="st s-pass">подтверждён</span>{% elif hostkey %}<span class="st s-unknown">не подтверждён</span>{% else %}<span class="st s-na">не задан</span>{% endif %}</div>
-      <div class="panel-body">
-      {% if hostkey %}
-        <div class="mono mb-8 wrap-any">{{ hostkey.key_type }}<br>{{ hostkey.fingerprint_sha256 }}</div>
-        {% if hostkey.confirmed_at %}<div class="small muted">Подтвердил {{ hostkey.confirmed_by }} {{ hostkey.confirmed_at|date:"d.m.Y H:i" }}</div>
-        {% else %}<div class="note warn mb-8">Операции с узлом запрещены, пока ключ не подтверждён. Сверьте отпечаток с выводом <span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span> на самом узле.</div>
-          {% if can_confirm %}<form method="post" action="{% url 'inventory:hostkey_confirm' project.id node.id %}">{% csrf_token %}<button class="btn primary">Отпечаток совпадает, подтвердить</button></form>{% endif %}
-        {% endif %}
-      {% else %}<p class="muted">Ключ не задан. Получите его с узла или вставьте строку из файла ключа.</p>{% endif %}
-      {% if can_edit and can_run %}<form class="mt-16" method="post" action="{% url 'inventory:hostkey_fetch' project.id node.id %}">{% csrf_token %}<button class="btn sm">Получить ключ с узла</button>
-        <div class="help small muted mt-8">Ключ сохраняется неподтверждённым. Подтверждайте только после сверки отпечатка на самом узле.</div></form>{% endif %}
-      {% if can_edit %}<form class="mt-16" method="post" action="{% url 'inventory:hostkey_set' project.id node.id %}">{% csrf_token %}
-        <label for="pk">Открытый ключ узла</label><textarea id="pk" name="public_key" rows="2" class="mono" placeholder="ssh-ed25519 AAAA…"></textarea>
-        <button class="btn sm mt-8">Сохранить ключ</button></form>{% endif %}
-      </div></section>
-
-    {% if snapshot %}<section class="panel" aria-labelledby="h-src"><div class="panel-head"><h2 id="h-src">Ответы агента</h2><span class="meta">агент {{ snapshot.agent_version }}</span></div>
-      <table class="table tight"><tbody>{% for key, f in snapshot.facts|pairs %}<tr><td class="first mono">{{ key }}</td><td class="last num"><span class="st {% if f.state == 'OK' %}s-pass{% else %}s-unknown{% endif %}">{{ f.state }}</span>{% if f.error_code %}<span class="sub mono">{{ f.error_code }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></section>{% endif %}
-
-    {% if can_edit %}{% url 'inventory:node_deactivate' project.id node.id as deact_url %}{% include "core/_confirm.html" with action_url=deact_url label="Отключить узел" question="Отключить узел?" consequence="Узел исчезнет из аудита, планов и проверок; его история и отчёты сохранятся." confirm="Да, отключить" %}{% endif %}
-  </div>
-
-  <section class="panel" aria-labelledby="h-inv"><div class="panel-head"><h2 id="h-inv">Последняя инвентаризация</h2>
-    {% if snapshot %}<span class="meta">{{ snapshot.collected_at|date:"d.m.Y H:i:s" }} · агент {{ snapshot.agent_version }}</span>{% endif %}</div>
-    {% if snapshot %}{% include "inventory/_facts.html" with facts=snapshot.facts %}
-    {% else %}<div class="empty">Инвентаризация ещё не выполнялась. Она собирает версию ОС, пакеты, службы, порты и действующие настройки защиты; на узле ничего не меняется.</div>{% endif %}
+<div class="cols">
+  <section class="sec" aria-labelledby="h-inv">
+    <div class="sec-h"><h2 id="h-inv">Инвентаризация</h2>{% if snapshot %}<div class="tools"><span class="muted" title="{{ snapshot.collected_at|full }}">{{ snapshot.collected_at|when }} · агент {{ snapshot.agent_version }}</span></div>{% endif %}</div>
+    <div class="box">{% if snapshot %}{% include "inventory/_facts.html" with facts=snapshot.facts %}
+    {% else %}<div class="empty">Инвентаризации не было.</div>{% endif %}</div>
   </section>
+
+  <div>
+    <section class="sec" aria-labelledby="h-addr">
+      <div class="sec-h"><h2 id="h-addr">Адреса</h2></div>
+      <div class="box"><dl class="kv">
+        <dt>SSH</dt><dd class="mono copy">{{ node.mgmt_ip }}:{{ node.ssh_port }}</dd>
+        <dt>Рабочие</dt><dd class="mono">{{ node.data_ips|join:", "|default:"–" }}</dd>
+        <dt>Ожидаемые порты</dt><dd class="mono">{{ node.expected_tcp_ports|join:", "|default:"–" }}</dd>
+        {% if node.ids_interface %}<dt>Интерфейс датчика</dt><dd class="mono">{{ node.ids_interface }}</dd>{% endif %}
+      </dl></div>
+    </section>
+
+    <section class="sec" aria-labelledby="h-key">
+      <div class="sec-h"><h2 id="h-key">Ключ узла</h2><div class="tools">{% if hostkey and hostkey.confirmed_at %}<span class="muted">подтверждён</span>{% elif hostkey %}<span class="st s-unknown">не подтверждён</span>{% else %}<span class="st s-unknown">не задан</span>{% endif %}</div></div>
+      <div class="box box-body">
+      {% if hostkey %}
+        <div class="mono wrap-any copy" data-copy="{{ hostkey.fingerprint_sha256 }}">{{ hostkey.key_type }} {{ hostkey.fingerprint_sha256 }}</div>
+        {% if hostkey.confirmed_at %}<div class="xs muted mt-8">{{ hostkey.confirmed_by }}, {{ hostkey.confirmed_at|full }}</div>
+        {% elif can_confirm %}<form class="mt-8" method="post" action="{% url 'inventory:hostkey_confirm' project.id node.id %}">{% csrf_token %}<button class="btn primary sm">Отпечаток совпадает, подтвердить</button></form>{% endif %}
+      {% endif %}
+      {% if can_edit %}{% if hostkey and hostkey.confirmed_at %}<details class="mt-16"><summary class="small">Заменить ключ</summary>{% endif %}
+        <div class="row mt-8">{% if can_run %}<form method="post" action="{% url 'inventory:hostkey_fetch' project.id node.id %}">{% csrf_token %}<button class="btn sm">Получить с узла</button></form>{% endif %}</div>
+        <form class="mt-8" method="post" action="{% url 'inventory:hostkey_set' project.id node.id %}">{% csrf_token %}
+          <label class="label" for="pk">Или вставьте открытый ключ</label><textarea id="pk" name="public_key" rows="2" class="mono" placeholder="ssh-ed25519 AAAA…"></textarea>
+          <button class="btn sm mt-8">Сохранить</button></form>
+      {% if hostkey and hostkey.confirmed_at %}</details>{% endif %}{% endif %}
+      </div>
+    </section>
+
+    {% if snapshot %}<section class="sec" aria-labelledby="h-src">
+      <div class="sec-h"><h2 id="h-src">Ответы агента</h2></div>
+      <div class="tw"><table class="t tight"><tbody>{% for key, f in snapshot.facts|pairs %}<tr><td class="mono">{{ key }}</td><td class="num"><span class="st {% if f.state == 'OK' %}s-pass{% else %}s-unknown{% endif %}">{{ f.state }}</span>{% if f.error_code %}<span class="sub mono">{{ f.error_code }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+    </section>{% endif %}
+  </div>
 </div>
+{% if can_edit %}<div class="danger-zone">{% url 'inventory:node_deactivate' project.id node.id as deact_url %}{% include "core/_confirm.html" with action_url=deact_url label="Отключить узел" question="Отключить узел?" consequence="Узел исчезнет из аудита, планов и проверок; его история и отчёты сохранятся." confirm="Да, отключить" %}</div>{% endif %}
 {% endblock %}

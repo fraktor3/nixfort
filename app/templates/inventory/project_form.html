@@ -1,10 +1,9 @@
 {% extends "base.html" %}
-{% block title %}{% if project %}Изменить проект{% else %}Новый проект{% endif %} · NIXFORT{% endblock %}
+{% block title %}{% if project %}Изменить проект{% else %}Новый проект{% endif %}{% endblock %}
 {% block content %}
-<div class="page-head"><div>{% if project %}<div class="crumbs"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a></div>{% endif %}
-  <h1>{% if project %}Изменить проект{% else %}Новый проект{% endif %}</h1>
-  <div class="sub">Подсети ограничивают всё, что делает NIXFORT: сканирование, пробы соединений и проверки защиты выполняются только внутри них.</div></div></div>
-<section class="panel form"><div class="panel-body"><form method="post">{% include "core/_form.html" %}
+<div class="head"><div>{% if project %}<div class="crumbs"><a href="{% url 'inventory:project_detail' project.id %}">{{ project.name }}</a></div>{% else %}<div class="crumbs"><a href="{% url 'inventory:project_list' %}">Проекты</a></div>{% endif %}
+  <h1>{% if project %}Изменить проект{% else %}Новый проект{% endif %}</h1></div></div>
+<form method="post" class="form box">{% include "core/_form.html" %}
   <div class="form-actions"><button class="btn primary">Сохранить</button>
-  <a href="{% if project %}{% url 'inventory:project_detail' project.id %}{% else %}{% url 'inventory:project_list' %}{% endif %}">Отмена</a></div></form></div></section>
+  <a href="{% if project %}{% url 'inventory:project_detail' project.id %}{% else %}{% url 'inventory:project_list' %}{% endif %}">Отмена</a></div></form>
 {% endblock %}

@@ -18,14 +18,15 @@ class ProjectForm(forms.ModelForm):
         label="Дополнительные адреса администраторов (SSH к шлюзу)",
         required=False,
         max_length=60,
-        help_text="До 3 IPv4. После применения политики межсетевого экрана SSH к шлюзу разрешён только "
-        "с адреса контроллера и с этих адресов. На стенде VirtualBox: 10.0.2.2 (проброс портов NAT).",
+        help_text="До 3 IPv4. После применения политики SSH к шлюзу разрешён только с них и с контроллера. "
+        "Стенд VirtualBox: 10.0.2.2.",
     )
 
     class Meta:
         model = Project
         fields = ["name", "description", "cidrs", "controller_ip", "admin_sources"]
         widgets = {"description": forms.Textarea(attrs={"rows": 3})}
+        labels = {"controller_ip": "IP контроллера (сеть управления)"}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

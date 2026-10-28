@@ -1,14 +1,15 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Проекты · NIXFORT{% endblock %}
+{% block title %}Проекты{% endblock %}
+{% block here %}Проекты{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><h1>Проекты</h1><div class="sub">Проект описывает один сегмент сети: подсети, контроллер и узлы, которыми управляет NIXFORT.</div></div>
+<div class="head">
+  <div><h1>Проекты</h1><div class="meta"><span>{{ projects|length }}</span></div></div>
   <div class="actions">{% if can_create_project %}<a class="btn primary" href="{% url 'inventory:project_create' %}">Новый проект</a>{% endif %}</div>
 </div>
-<section class="panel"><div class="table-wrap"><table class="table">
-  <thead><tr><th class="first">Название</th><th>Подсети</th><th>Контроллер</th><th class="last">Состояние</th></tr></thead>
-  <tbody>{% for p in projects %}<tr><td class="first"><a href="{% url 'inventory:project_detail' p.id %}">{{ p.name }}</a>{% if p.description %}<span class="sub">{{ p.description|truncatechars:90 }}</span>{% endif %}</td>
-    <td class="mono">{{ p.cidrs|join:", " }}</td><td class="mono">{{ p.controller_ip }}</td><td class="last"><span class="st {{ p.status|st }}">{{ p.get_status_display }}</span></td></tr>
+<div class="tw"><table class="t stack" data-keys>
+  <thead><tr><th data-sort>Название</th><th>Подсети</th><th class="p2">Контроллер</th><th data-sort>Состояние</th></tr></thead>
+  <tbody>{% for p in projects %}<tr><td><a href="{% url 'inventory:project_detail' p.id %}">{{ p.name }}</a>{% if p.description %}<span class="sub">{{ p.description|truncatechars:90 }}</span>{% endif %}</td>
+    <td class="mono">{{ p.cidrs|join:", " }}</td><td class="mono p2">{{ p.controller_ip }}</td><td><span class="st {{ p.status|st }}">{{ p.get_status_display }}</span></td></tr>
   {% empty %}<tr><td colspan="4" class="empty">Нет доступных проектов.</td></tr>{% endfor %}</tbody>
-</table></div></section>
+</table></div>
 {% endblock %}

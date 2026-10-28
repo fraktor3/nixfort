@@ -65,7 +65,7 @@ def _fmt(dt) -> str:
 
 
 def cycle(project, nodes, runs, plans, protection, summary, report):
-    """The NIXFORT work order with each step's evidence and the first step that still needs doing."""
+    """The work order with each step's evidence and the first step that still needs doing."""
     pid = project.id
     steps = []
     no_key = [n for n in nodes if n.confirmed_hostkey is None]
@@ -201,7 +201,7 @@ def node_states(matrix) -> dict:
     return out
 
 
-STATE_FILL = {"pass": "#2a7343", "fail": "#b8262c", "unknown": "#9a6411", "na": "none"}
+STATE_FILL = {"pass": "#4b5259", "fail": "#b3261e", "unknown": "#855000", "na": "none"}
 STATE_WORD = {
     "pass": "все уровни в норме",
     "fail": "есть нарушения",
@@ -214,7 +214,7 @@ def segment_svg(project, nodes, states: dict | None = None) -> str:
     """The segment as the engineer draws it: one band per subnet, one column per host (the controller first),
     a square where the host has an address in that subnet. The square on each host card is its audit state."""
     states = states or {}
-    cols = [("NIXFORT", "контроллер", [project.controller_ip], None)]
+    cols = [("контроллер", "", [project.controller_ip], None)]
     for n in nodes:
         role = (
             "шлюз"
@@ -229,22 +229,22 @@ def segment_svg(project, nodes, states: dict | None = None) -> str:
     lanes = list(project.cidrs or [])
     if not lanes:
         return ""
-    width, left, card_h, top, lane_h, band = 520, 132, 40, 64, 56, 30
+    width, left, card_h, top, lane_h, band = 420, 104, 40, 62, 52, 30
     col_w = (width - left) / max(len(cols), 1)
     height = top + lane_h * len(lanes) - (lane_h - band) // 2 + 2
     out = [f'<svg class="chart scheme" viewBox="0 0 {width} {height}" role="img" '
            f'aria-label="Схема сегмента: подсети и узлы" xmlns="http://www.w3.org/2000/svg" font-family="Plex, sans-serif">']  # fmt: skip
     for i, cidr in enumerate(lanes):
         y = top + lane_h * i
-        out.append(f'<rect x="0" y="{y}" width="{width}" height="{band}" fill="#eef1f4"/>')
+        out.append(f'<rect x="0" y="{y}" width="{width}" height="{band}" fill="#eef0f3"/>')
         out.append(
-            f'<text x="8" y="{y + 13}" font-size="12" fill="#121518">{escape(_net_name(project, cidr, nodes))}</text>'
+            f'<text x="6" y="{y + 13}" font-size="11" fill="#14171a">{escape(_net_name(project, cidr, nodes))}</text>'
         )
-        out.append(f'<text x="8" y="{y + 25}" font-size="11" fill="#535a61" font-family="Plex Mono, monospace">'
+        out.append(f'<text x="6" y="{y + 25}" font-size="11" fill="#636b73" font-family="Plex Mono, monospace">'
                    f'{escape(cidr)}</text>')  # fmt: skip
     for j, (name, role, ips, state) in enumerate(cols):
         cx = left + col_w * j + col_w / 2
-        cw = min(col_w - 8, 92)
+        cw = min(col_w - 6, 92)
         hits = []
         for i, cidr in enumerate(lanes):
             net = ipaddress.ip_network(cidr, strict=False)
@@ -252,23 +252,37 @@ def segment_svg(project, nodes, states: dict | None = None) -> str:
             if ip:
                 hits.append((top + lane_h * i + band / 2, ip))
         if hits:
-            out.append(f'<line x1="{cx}" y1="{card_h}" x2="{cx}" y2="{hits[-1][0]}" stroke="#121518" '
+            out.append(f'<line x1="{cx}" y1="{card_h}" x2="{cx}" y2="{hits[-1][0]}" stroke="#14171a" '
                        f'stroke-width="{2 if role == "шлюз" else 1.2}"/>')  # fmt: skip
         out.append(
-            f'<rect x="{cx - cw / 2}" y="0.5" width="{cw}" height="{card_h - 1}" fill="#fbfcfc" stroke="#121518"/>'
+            f'<rect x="{cx - cw / 2}" y="0.5" width="{cw}" height="{card_h - 1}" fill="#fbfbfc" stroke="#14171a"/>'
         )
         short = name[3:] if name.startswith("nx-") else name
-        out.append(f'<text x="{cx}" y="17" font-size="12" text-anchor="middle" fill="#121518" '
-                   f'font-family="Plex Mono, monospace">{escape(short)}</text>')  # fmt: skip
-        out.append(f'<text x="{cx}" y="31" font-size="11" text-anchor="middle" fill="#535a61">{escape(role)}</text>')
-        if state:
-            fill = STATE_FILL[state]
-            stroke = ' stroke="#8d949b"' if fill == "none" else ""
-            out.append(f'<rect x="{cx - cw / 2 + 5}" y="6" width="7" height="7" fill="{fill}"{stroke}>'
+        face = "Plex, sans-serif" if role == "" else "Plex Mono, monospace"
+        out.append(f'<text x="{cx}" y="{24 if role == "" else 17}" font-size="{11 if role == "" else 12}" '
+                   f'text-anchor="middle" fill="#14171a" font-family="{face}">{escape(short)}</text>')  # fmt: skip
+        out.append(f'<text x="{cx}" y="31" font-size="11" text-anchor="middle" fill="#636b73">{escape(role)}</text>')
+        if state in ("fail", "unknown"):
+            out.append(f'<rect x="{cx - cw / 2 + 0.5}" y="{card_h - 4}" width="{cw - 1}" height="3.5" fill="{STATE_FILL[state]}">'
                        f'<title>{escape(name)}: {STATE_WORD[state]}</title></rect>')  # fmt: skip
         for y, ip in hits:
-            out.append(f'<rect x="{cx - 4}" y="{y - 4}" width="8" height="8" fill="#121518"/>')
-            out.append(f'<text x="{cx + 8}" y="{y + 4}" font-size="11" fill="#121518" '
+            out.append(f'<rect x="{cx - 4}" y="{y - 4}" width="8" height="8" fill="#14171a"/>')
+            out.append(f'<text x="{cx + 8}" y="{y + 4}" font-size="11" fill="#14171a" '
                        f'font-family="Plex Mono, monospace">.{escape(ip.rsplit(".", 1)[-1])}</text>')  # fmt: skip
     out.append("</svg>")
     return "".join(out)
+
+
+def segment_rows(project, nodes) -> list:
+    """The scheme as rows for narrow screens: subnet -> hosts with their address in it."""
+    rows = []
+    hosts = [("контроллер", [project.controller_ip])] + [(n.name, [n.mgmt_ip, *(n.data_ips or [])]) for n in nodes]
+    for cidr in project.cidrs or []:
+        net = ipaddress.ip_network(cidr, strict=False)
+        members = []
+        for name, ips in hosts:
+            ip = next((a for a in ips if a and ipaddress.ip_address(a) in net), None)
+            if ip:
+                members.append({"name": name, "ip": ip})
+        rows.append({"cidr": cidr, "title": _net_name(project, cidr, nodes), "hosts": members})
+    return rows

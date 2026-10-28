@@ -1,23 +1,24 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}Журнал действий · NIXFORT{% endblock %}
+{% block title %}Журнал действий{% endblock %}
+{% block here %}Журнал действий{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Журнал действий</h1><div class="sub">Входы, отказы в доступе, задания, утверждения и выгрузки. Записи только добавляются: изменить или удалить их нельзя.</div></div></div>
-<form method="get" class="toolbar mb-16">
-  <div class="field"><label for="fa">Действие</label><select id="fa" name="action"><option value="">Все действия</option>
+<div class="head"><div><h1>Журнал действий</h1><div class="meta"><span>только добавление записей</span>{% if page.paginator.count %}<span>записей {{ page.paginator.count }}</span>{% endif %}</div></div></div>
+<form method="get" class="inline-form mb-16">
+  <div class="field"><label for="fa">Действие</label><select id="fa" name="action"><option value="">Все</option>
     {% for v, l in actions %}<option value="{{ v }}" {% if v == sel_action %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
   <div class="field"><label for="fu">Пользователь</label><input id="fu" name="actor" value="{{ actor }}" type="text"></div>
-  <button class="btn">Показать</button>{% if sel_action or actor %}<a href="?">сбросить</a>{% endif %}
+  <button class="btn">Показать</button>{% if sel_action or actor %}<a class="small" href="?">Сбросить</a>{% endif %}
 </form>
-<section class="panel"><div class="table-wrap"><table class="table">
-  <thead><tr><th class="first">Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Итог</th><th>IP</th><th class="last">Подробности</th></tr></thead>
-  <tbody>{% for e in page %}<tr><td class="first nowrap">{{ e.ts|date:"d.m.Y H:i:s" }}</td><td>{{ e.actor_name|default:"система" }}</td><td>{{ e.get_action_display }}</td>
-    <td class="small">{{ e.object_type }}</td><td class="nowrap"><span class="st {{ e.outcome|st }}">{{ e.get_outcome_display }}</span></td>
-    <td class="mono">{{ e.ip|default:"" }}</td><td class="last mono small">{% for k, v in e.safe_metadata|pairs %}{{ k }}={{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>
+<div class="tw"><table class="t stack" data-keys>
+  <thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th class="p3">Объект</th><th>Итог</th><th class="p2">IP</th><th>Подробности</th></tr></thead>
+  <tbody>{% for e in page %}<tr><td class="nowrap" title="{{ e.ts|full }}">{{ e.ts|full }}</td><td>{{ e.actor_name|default:"система" }}</td><td>{{ e.get_action_display }}</td>
+    <td class="small p3">{{ e.object_type }}</td><td class="nowrap"><span class="st {{ e.outcome|st }}">{{ e.get_outcome_display }}</span></td>
+    <td class="mono p2">{{ e.ip|default:"" }}</td><td class="mono xs wrap-any">{% for k, v in e.safe_metadata|pairs %}{{ k }}={{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>
   {% empty %}<tr><td colspan="7" class="empty">Записей нет.</td></tr>{% endfor %}</tbody>
-</table></div></section>
+</table></div>
 {% if page.has_other_pages %}<nav class="pager" aria-label="Страницы">
   {% if page.has_previous %}<a class="btn sm" href="?page={{ page.previous_page_number }}&action={{ sel_action }}&actor={{ actor|urlencode }}">Назад</a>{% endif %}
-  <span class="muted">страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
+  <span>страница {{ page.number }} из {{ page.paginator.num_pages }}</span>
   {% if page.has_next %}<a class="btn sm" href="?page={{ page.next_page_number }}&action={{ sel_action }}&actor={{ actor|urlencode }}">Дальше</a>{% endif %}
 </nav>{% endif %}
 {% endblock %}

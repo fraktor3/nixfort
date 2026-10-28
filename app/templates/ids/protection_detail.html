@@ -1,24 +1,24 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}{{ t.get_scenario_display }} · {{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="head">
   <div><div class="crumbs"><a href="{% url 'ids:protection' project.id %}">Проверка защиты</a></div>
-    <div class="title-line"><h1>{{ t.get_scenario_display }}</h1><span class="st big {{ t.verdict|st }}">{{ t.get_verdict_display }}</span></div>
-    <div class="sub">{{ t.created_at|date:"d.m.Y H:i:s" }}{% if t.job %} · <a href="{% url 'execution:job_detail' project.id t.job_id %}">журнал задания</a>{% endif %}</div></div>
+    <div class="t1"><h1>{{ t.get_scenario_display }}</h1><span class="st {{ t.verdict|st }}">{{ t.get_verdict_display }}</span></div>
+    <div class="meta"><span>{{ t.created_at|full }}</span>{% if t.job %}<span><a href="{% url 'execution:job_detail' project.id t.job_id %}">журнал задания</a></span>{% endif %}</div></div>
 </div>
-<div class="grid {% if cap %}g-1-1{% endif %}">
-  <section class="panel"><div class="panel-head"><h2>Уровни защиты</h2><span class="meta">что ожидалось и что наблюдалось</span></div>
-    <div class="table-wrap"><table class="table">
-      <thead><tr><th class="first">Уровень</th><th>Ожидалось</th><th>Наблюдалось</th><th class="last"></th></tr></thead>
-      <tbody>{% for l in t.layers %}<tr><td class="first">{{ l.layer }}</td><td class="small">{{ l.expected }}</td><td class="small">{{ l.observed }}</td>
-        <td class="last nowrap">{% if l.ok %}<span class="st s-pass">сработал</span>{% elif l.ok == False %}<span class="st s-fail">не сработал</span>{% else %}<span class="st s-na">нет данных</span>{% endif %}</td></tr>
-      {% empty %}<tr><td colspan="4" class="empty">{{ t.summary|default:"Нет данных." }}</td></tr>{% endfor %}</tbody></table></div></section>
-  {% if cap %}<section class="panel"><div class="panel-head"><h2>Трафик на шлюзе во время проверки</h2>{% if cap.state == "DONE" %}<a class="meta" href="{% url 'pcap:detail' project.id cap.id %}">полный разбор</a>{% endif %}</div>
-    {% if cap.state == "DONE" %}{% with d=cap.analysis %}
-    <div class="panel-body"><div class="small muted mb-8"><span class="mono">{{ cap.node.name }}/{{ cap.interface }}</span>: пакетов {{ d.packets }}, новых TCP-соединений {{ d.tcp_new_connections }}, длительность {{ d.duration_s }} с</div>
-      {% for f in d.findings %}<div class="note warn mb-8"><b>{{ f.title }}.</b> {{ f.detail }}</div>{% endfor %}
+<div class="{% if cap %}cols even{% endif %}">
+  <section class="sec"><div class="sec-h"><h2>Уровни защиты</h2></div>
+    <div class="tw"><table class="t stack">
+      <thead><tr><th>Уровень</th><th>Ожидалось</th><th>Наблюдалось</th><th></th></tr></thead>
+      <tbody>{% for l in t.layers %}<tr><td>{{ l.layer }}</td><td class="small" data-l="ожидалось:">{{ l.expected|nb }}</td><td class="small" data-l="наблюдалось:">{{ l.observed|nb }}</td>
+        <td class="num">{% if l.ok %}<span class="st s-pass">сработал</span>{% elif l.ok == False %}<span class="st s-fail">не сработал</span>{% else %}<span class="st s-unknown">нет данных</span>{% endif %}</td></tr>
+      {% empty %}<tr><td colspan="4" class="empty">{{ t.summary|default:"Нет данных."|nb }}</td></tr>{% endfor %}</tbody></table></div></section>
+  {% if cap %}<section class="sec"><div class="sec-h"><h2>Трафик на шлюзе во время проверки</h2>{% if cap.state == "DONE" %}<div class="tools"><a href="{% url 'pcap:detail' project.id cap.id %}">полный разбор</a></div>{% endif %}</div>
+    <div class="box">{% if cap.state == "DONE" %}{% with d=cap.analysis %}
+    <div class="box-body"><div class="xs muted mb-8"><span class="mono">{{ cap.node.name }}/{{ cap.interface }}</span> · пакетов {{ d.packets }} · новых TCP {{ d.tcp_new_connections }} · {{ d.duration_s }} с</div>
+      {% for f in d.findings %}<div class="note mb-8"><b>{{ f.title }}.</b> {{ f.detail }}</div>{% endfor %}
       {% if tl.packets %}{{ tl.packets|safe }}{% endif %}</div>
-    {% endwith %}{% else %}<div class="empty">Запись трафика не получена: {{ cap.error|default:"обрабатывается" }}</div>{% endif %}</section>{% endif %}
+    {% endwith %}{% else %}<div class="empty">Запись трафика не получена: {{ cap.error|default:"обрабатывается" }}</div>{% endif %}</div></section>{% endif %}
 </div>
-{% if t.details %}<details class="more section-gap"><summary>Исходные данные проверки</summary><pre class="mono small">{{ t.details|pprint }}</pre></details>{% endif %}
+{% if t.details %}<details class="sec mt-24"><summary class="sec-h"><h2>Исходные данные</h2></summary><div class="box box-body"><pre class="xs">{{ t.details|pprint }}</pre></div></details>{% endif %}
 {% endblock %}

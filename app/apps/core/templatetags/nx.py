@@ -171,3 +171,89 @@ RISK_RU = {"HIGH": "высокий", "MEDIUM": "средний", "LOW": "низ�
 @register.filter
 def risk_ru(value) -> str:
     return RISK_RU.get(str(value), str(value or "–"))
+
+
+@register.filter
+def when(value) -> str:
+    """Compact local time for lists: «сегодня 11:51», «вчера 18:02», «26.10 09:15», «26.10.2025».
+    The full timestamp goes into a title attribute next to it (filter `full`)."""
+    from datetime import datetime, timedelta
+
+    from django.utils import timezone
+
+    if not value:
+        return "–"
+    if not isinstance(value, datetime):
+        try:
+            value = datetime.fromisoformat(str(value))
+        except ValueError:
+            return str(value)
+    if timezone.is_aware(value):
+        value = timezone.localtime(value)
+    today = timezone.localdate()
+    d = value.date()
+    if d == today:
+        return f"сегодня {value:%H:%M}"
+    if d == today - timedelta(days=1):
+        return f"вчера {value:%H:%M}"
+    if d.year == today.year:
+        return f"{value:%d.%m %H:%M}"
+    return f"{value:%d.%m.%Y}"
+
+
+@register.filter
+def full(value) -> str:
+    """Full local timestamp «28.10.2026 11:51:49» (for titles and documents)."""
+    from datetime import datetime
+
+    from django.utils import timezone
+
+    if not value:
+        return ""
+    if not isinstance(value, datetime):
+        return isodt(value)
+    if timezone.is_aware(value):
+        value = timezone.localtime(value)
+    return f"{value:%d.%m.%Y %H:%M:%S}"
+
+
+@register.filter
+def sig(value) -> str:
+    """Suricata rule message without the deployment prefix of the bundled test rules."""
+    s = str(value or "")
+    for prefix in ("NIXFORT ", "NIXFORT: "):
+        if s.startswith(prefix):
+            return s[len(prefix) :]
+    return s
+
+
+@register.filter
+def short_cidrs(cidrs) -> str:
+    """First subnet and «+N» for the rest (lists keep one line per row)."""
+    cidrs = list(cidrs or [])
+    if not cidrs:
+        return "–"
+    return cidrs[0] + (f" +{len(cidrs) - 1}" if len(cidrs) > 1 else "")
+
+
+_DEBRAND = [
+    ("правила NIXFORT", "тестовые правила"),
+    ("Правила NIXFORT", "Тестовые правила"),
+    ("Политика NIXFORT", "Политика сегмента"),
+    ("таблица NIXFORT", "управляемая таблица правил"),
+    ("NIXFORT не будет вносить изменения", "изменения не будут вноситься"),
+    ("NIXFORT-", ""),
+    ("NIXFORT ", ""),
+    ("NIXFORT", ""),
+]
+
+
+@register.filter
+def nb(value) -> str:
+    """Text stored by earlier versions (results, plan steps, logs) without the internal product name."""
+    s = "" if value is None else str(value)
+    if "NIXFORT" not in s:
+        return s
+    for a, b in _DEBRAND:
+        s = s.replace(a, b)
+    return s

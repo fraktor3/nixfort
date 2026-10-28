@@ -1,14 +1,13 @@
 {% load nx %}
 {% with f=facts.system.result %}{% if f %}
-<div class="panel-body"><table class="kv">
-  <tr><th>ОС</th><td>{{ f.os.pretty_name }} <span class="muted">{{ f.os.arch }}, ядро {{ f.os.kernel }}</span>{% if not f.os_supported %} <span class="st s-fail">не поддерживается</span>{% endif %}</td></tr>
-  <tr><th>Интерфейсы</th><td class="mono">{% for i in f.interfaces %}{{ i.name }} {{ i.ipv4|join:", "|default:"без IPv4" }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td></tr>
-  <tr><th>Пересылка IPv4</th><td>{{ f.ip_forward|yesno:"включена,выключена,нет данных" }}</td></tr>
-  <tr><th>IPv6</th><td>{% if f.ipv6_present %}есть глобальные адреса; правила IPv6 NIXFORT не изменяет{% else %}глобальных адресов нет{% endif %}</td></tr>
-  <tr><th>Время</th><td>{{ f.time_sync.service|default:"нет службы" }}, синхронизировано: {{ f.time_sync.synchronized|yesno:"да,нет,нет данных" }}</td></tr>
-  <tr><th>Пакеты защиты</th><td class="mono">{% for k, v in f.packages|pairs %}{{ k }} {{ v|default:"не установлен" }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td></tr>
-  <tr><th>Службы</th><td class="mono">{% for k, v in f.services|pairs %}{{ k }} {{ v }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td></tr>
-  {% if facts.listeners.result %}<tr><th>Порты TCP (без loopback)</th><td class="mono">{% for l in facts.listeners.result.listeners %}{% if not l.loopback %}{{ l.addr }}:{{ l.port }} {{ l.process|default:"?" }}<br>{% endif %}{% endfor %}</td></tr>{% endif %}
-</table></div>{% endif %}{% endwith %}
-{% if facts.ssh.result.effective %}<div class="panel-body"><span class="label-text">SSH: действующие значения (sshd -T)</span>
-  <div class="mono small">{% for k, v in facts.ssh.result.effective|pairs %}{{ k }} {{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</div></div>{% endif %}
+<dl class="kv">
+  <dt>ОС</dt><dd>{{ f.os.pretty_name }} <span class="muted">{{ f.os.arch }}, ядро {{ f.os.kernel }}</span>{% if not f.os_supported %} <span class="st s-fail">не поддерживается</span>{% endif %}</dd>
+  <dt>Интерфейсы</dt><dd class="mono">{% for i in f.interfaces %}{{ i.name }} {{ i.ipv4|join:", "|default:"без IPv4" }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>
+  <dt>Пересылка IPv4</dt><dd>{{ f.ip_forward|yesno:"включена,выключена,нет данных" }}</dd>
+  <dt>IPv6</dt><dd>{% if f.ipv6_present %}есть глобальные адреса <span class="muted">(правила IPv6 не изменяются)</span>{% else %}глобальных адресов нет{% endif %}</dd>
+  <dt>Время</dt><dd>{{ f.time_sync.service|default:"нет службы" }}, синхронизировано: {{ f.time_sync.synchronized|yesno:"да,нет,нет данных" }}</dd>
+  <dt>Пакеты защиты</dt><dd class="mono">{% for k, v in f.packages|pairs %}{{ k }} <span class="{% if not v %}muted{% endif %}">{{ v|default:"не установлен" }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>
+  <dt>Службы</dt><dd class="mono">{% for k, v in f.services|pairs %}{{ k }} <span class="{% if v != 'active' %}muted{% endif %}">{{ v }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>
+  {% if facts.listeners.result %}<dt>Порты TCP</dt><dd class="mono">{% for l in facts.listeners.result.listeners %}{% if not l.loopback %}{{ l.addr }}:{{ l.port }} {{ l.process|default:"?" }}<br>{% endif %}{% endfor %}</dd>{% endif %}
+  {% if facts.ssh.result.effective %}<dt>sshd -T</dt><dd class="mono xs">{% for k, v in facts.ssh.result.effective|pairs %}{{ k }} {{ v }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</dd>{% endif %}
+</dl>{% endif %}{% endwith %}

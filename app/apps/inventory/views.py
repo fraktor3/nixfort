@@ -82,6 +82,7 @@ def project_detail(request, project_id):
         "first_run": first if first and latest and first.id != latest.id else None,
         "finding": overview.finding(latest, nodes),
         "scheme": overview.segment_svg(project, nodes, overview.node_states(matrix)),
+        "netlist": overview.segment_rows(project, nodes),
         "protection": sorted(protection, key=lambda t: t.scenario),
         "can_edit": has_perm(request.user, Perm.EDIT_PROJECT, project) and not project.is_archived,
         "can_run": can_run,

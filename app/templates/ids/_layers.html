@@ -1,5 +1,5 @@
-{% load nx %}<table class="table tight">
-  <tbody>{% for l in t.layers %}<tr><td class="first">{{ l.layer }}<span class="sub">{{ l.observed }}</span></td>
-    <td class="last nowrap">{% if l.ok %}<span class="st s-pass">сработал</span>{% elif l.ok == False %}<span class="st s-fail">не сработал</span>{% else %}<span class="st s-na">нет данных</span>{% endif %}</td></tr>
-  {% empty %}<tr><td class="empty">{{ t.summary|default:"Нет данных." }}</td></tr>{% endfor %}</tbody>
+{% load nx %}<table class="t tight">
+  <tbody>{% for l in t.layers %}<tr><td>{{ l.layer }}<span class="sub">{{ l.observed|nb }}</span></td>
+    <td class="num">{% if l.ok %}<span class="st s-pass">сработал</span>{% elif l.ok == False %}<span class="st s-fail">не сработал</span>{% else %}<span class="st s-unknown">нет данных</span>{% endif %}</td></tr>
+  {% empty %}<tr><td class="empty">{{ t.summary|default:"Нет данных."|nb }}</td></tr>{% endfor %}</tbody>
 </table>

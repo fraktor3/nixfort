@@ -1,0 +1,12 @@
+{% load nx %}<div class="t1 mb-8"><h2>{{ check.title }}</h2><span class="st {{ r.status|st }}">{{ r.get_status_display }}</span></div>
+<p class="small dim mb-16"><span class="mono">{{ r.check_id }}</span> · узел <span class="mono">{{ r.node.name }}</span> · важность {{ check.severity|severity_ru }}</p>
+<p class="mb-16">{{ r.explanation|nb }}</p>
+<div class="box"><dl class="kv">
+  <dt>Ожидается</dt><dd class="mono">{{ r.expected|default:"–"|nb }}</dd>
+  <dt>Наблюдается</dt><dd class="mono">{{ r.observed|default:"–"|nb }}</dd>
+  <dt>Исправление</dt><dd class="mono">{{ check.remediation|default:"только рекомендация" }}</dd>
+  <dt>Источник</dt><dd>{{ check.source_ref|nb }}</dd>
+</dl></div>
+<div class="sec-h mt-24"><h2>Доказательства</h2></div>
+<div class="tw"><table class="t"><tbody>{% for e in evidence %}<tr><td><span class="mono">{{ e.source }}</span><span class="sub">{{ e.collected_at|full }} · SHA-256 <span class="mono copy" data-copy="{{ e.sha256 }}">{{ e.sha256|slice:":16" }}…</span></span></td></tr>
+{% empty %}<tr><td class="empty">Нет: проверка не применима или данные не собраны.</td></tr>{% endfor %}</tbody></table></div>

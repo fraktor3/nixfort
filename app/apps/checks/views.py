@@ -76,8 +76,9 @@ def result_detail(request, project_id, run_id, result_id):
         audit_run_id=run_id,
         audit_run__project=request.project,
     )
+    template = "checks/_result.html" if request.headers.get("HX-Request") else "checks/result_detail.html"
     return render(
         request,
-        "checks/result_detail.html",
+        template,
         {"project": request.project, "r": res, "check": res.definition, "evidence": res.evidence.all()},
     )

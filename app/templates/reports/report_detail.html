@@ -1,10 +1,10 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}{{ report.title }}{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="head">
   <div><div class="crumbs"><a href="{% url 'reports:list' project.id %}">Отчёты</a></div><h1>{{ report.title }}</h1>
-    <div class="sub">Сформирован {{ d.generated_at|isodt }} · {{ d.generated_by|default:"–" }} · SHA-256 данных <span class="mono">{{ report.sha256 }}</span></div></div>
+    <div class="meta"><span>{{ d.generated_at|isodt }}</span><span>{{ d.generated_by|default:"–" }}</span><span>SHA-256 <span class="mono copy" data-copy="{{ report.sha256 }}">{{ report.sha256|slice:":16" }}…</span></span></div></div>
   {% if can_export %}<div class="actions"><a class="btn" href="{% url 'reports:download' project.id report.id 'json' %}">JSON</a><a class="btn primary" href="{% url 'reports:download' project.id report.id 'pdf' %}">Скачать PDF</a></div>{% endif %}
 </div>
-<div class="report-doc">{% include "reports/_document.html" %}</div>
+<div class="report">{% include "reports/_document.html" %}</div>
 {% endblock %}

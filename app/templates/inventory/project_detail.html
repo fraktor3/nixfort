@@ -1,94 +1,101 @@
 {% extends "base.html" %}{% load nx %}
-{% block title %}{{ project.name }} · NIXFORT{% endblock %}
+{% block title %}{{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="head">
   <div>
-    <div class="title-line"><h1>{{ project.name }}</h1><span class="st {{ project.status|st }}">{{ project.get_status_display }}</span></div>
-    <div class="sub mono">{{ project.cidrs|join:" · " }} · контроллер {{ project.controller_ip }}{% if project.admin_sources %} · администраторы {{ project.admin_sources|join:", " }}{% endif %}</div>
-    {% if project.description %}<div class="sub">{{ project.description }}</div>{% endif %}
+    <div class="t1"><h1>{{ project.name }}</h1>{% if project.status != "ACTIVE" %}<span class="st {{ project.status|st }}">{{ project.get_status_display }}</span>{% endif %}</div>
+    <div class="meta"><span class="mono">{{ project.cidrs|join:"  " }}</span><span>контроллер <span class="mono copy">{{ project.controller_ip }}</span></span>{% if project.admin_sources %}<span>администраторы <span class="mono">{{ project.admin_sources|join:", " }}</span></span>{% endif %}</div>
   </div>
   <div class="actions">
-    {% if can_edit %}<a class="btn" href="{% url 'inventory:project_edit' project.id %}">Изменить проект</a>{% endif %}
+    {% if can_edit %}<a class="btn" href="{% url 'inventory:project_edit' project.id %}">Изменить</a>{% endif %}
     {% if action %}{% if action.post %}<form method="post" action="{{ action.url }}">{% csrf_token %}<button class="btn primary">{{ action.label }}</button></form>
     {% else %}<a class="btn primary" href="{{ action.url }}">{{ action.label }}</a>{% endif %}{% endif %}
   </div>
 </div>
 
-<nav class="cycle" aria-label="Порядок работы">
+<nav class="steps" aria-label="Порядок работы">
   {% for s in steps %}{% if s.url %}<a href="{{ s.url }}"{% if s.next %} class="next" aria-current="step"{% endif %}>{% else %}<div{% if s.next %} class="next" aria-current="step"{% endif %}>{% endif %}
-    <div class="step st {% if s.done %}s-pass{% elif s.next %}s-run{% else %}s-na{% endif %}">{{ s.title }}</div><div class="state">{% if s.next %}Следующий шаг: {% endif %}{{ s.state }}</div>
+    <span class="k">{{ s.title }}{% if s.next %}<i>далее</i>{% endif %}</span><span class="v" title="{{ s.state }}">{{ s.state }}</span>
   {% if s.url %}</a>{% else %}</div>{% endif %}{% endfor %}
 </nav>
 
-<div class="grid g-2-1 stretch section-gap">
-  <section class="panel" aria-labelledby="h-matrix">
-    <div class="panel-head"><h2 id="h-matrix">Уровни защиты по узлам</h2>
-      <span class="meta">{% if latest_run %}пройдено проверок по последнему аудиту {{ latest_run.created_at|date:"d.m.Y H:i" }}{% endif %}</span></div>
-    {% if finding %}<div class="finding">{{ finding }} {% if latest_run %}<a href="{% url 'checks:run_detail' project.id latest_run.id %}">Все результаты</a>{% endif %}</div>{% endif %}
-    {% if matrix and matrix.rows %}<div class="table-wrap grow"><table class="matrix">
-      <thead><tr><th class="layer">Уровень</th>{% for n in matrix.nodes %}<th class="node">{{ n.name }}</th>{% endfor %}</tr></thead>
-      <tbody>{% for row in matrix.rows %}<tr><td class="layer" title="{{ row.hint }}">{{ row.title }}</td>
-        {% for c in row.cells %}<td>{% if c.now %}<div class="cell" title="{% if c.now.failed %}не пройдены: {{ c.now.failed|join:', ' }}{% else %}все пройдены{% endif %}">
-          <span class="bar"><i class="bw-{{ c.now.passed|pct:c.now.total }}"></i></span>
-          <span class="ratio">{{ c.now.passed }} из {{ c.now.total }}</span>
-          <span class="was">{% if c.was and c.was.passed != c.now.passed %}до плана {{ c.was.passed }} из {{ c.was.total }}{% endif %}</span>
-          {% if c.now.failed %}<span class="ids">{{ c.now.failed|join:" " }}</span>{% endif %}</div>
-          {% else %}<span class="cell empty">не относится</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody>
-    </table></div>
-    {% if matrix.hidden %}<div class="panel-foot muted">{{ matrix.hidden|join:", " }}: проверки защиты не применяются (тестовый клиент).</div>{% endif %}
-    {% else %}<div class="empty grow">Аудит ещё не выполнялся. После аудита здесь появится состояние каждого уровня защиты на каждом узле.
-      {% if can_run %}<form method="post" action="{% url 'checks:run_start' project.id %}">{% csrf_token %}<button class="btn sm">Запустить аудит</button></form>{% endif %}</div>{% endif %}
-  </section>
+<div class="cols">
+  <div>
+    <section class="sec" aria-labelledby="h-matrix">
+      <div class="sec-h"><h2 id="h-matrix">Уровни защиты</h2>
+        <div class="tools">{% if latest_run %}<a href="{% url 'checks:run_detail' project.id latest_run.id %}" title="{{ latest_run.created_at|full }}">аудит {{ latest_run.created_at|when }}</a>{% endif %}{% if matrix.hidden %}<span class="muted">без проверок: {{ matrix.hidden|join:", " }}</span>{% endif %}</div></div>
+      {% if matrix and matrix.rows %}
+      <div class="tw">
+        <table class="mx">
+          <thead><tr><th>Уровень</th>{% for n in matrix.nodes %}<th class="node">{{ n.name }}</th>{% endfor %}</tr></thead>
+          <tbody>{% for row in matrix.rows %}<tr><th scope="row">{{ row.title }}<span class="sub">{{ row.hint }}</span></th>
+            {% for c in row.cells %}<td>{% if c.now %}<div class="cell{% if c.now.failed %} bad{% endif %}"{% if c.was and c.was.passed != c.now.passed %} title="до исправлений {{ c.was.passed }} из {{ c.was.total }}"{% endif %}>
+              <span class="bar"><i class="bw-{{ c.now.passed|pct:c.now.total }}"></i></span>
+              <span class="r">{{ c.now.passed }} из {{ c.now.total }}</span>
+              <span class="was">{% if c.was and c.was.passed != c.now.passed %}было {{ c.was.passed }}{% endif %}</span>
+              {% if c.now.failed %}<span class="ids">{% for id in c.now.failed %}<a href="{% url 'checks:run_detail' project.id latest_run.id %}?q={{ id }}">{{ id }}</a>{% endfor %}</span>{% endif %}</div>
+              {% else %}<span class="na">–</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody>
+        </table>
+        <div class="mx-cards">{% for n in matrix.nodes %}{% with j=forloop.counter0 %}<div><h3>{{ n.name }}</h3><dl>
+          {% for row in matrix.rows %}{% for c in row.cells %}{% if forloop.counter0 == j and c.now %}<dt>{{ row.title }}</dt><dd{% if c.now.failed %} class="bad"{% endif %}>{{ c.now.passed }} из {{ c.now.total }}</dd>
+            {% if c.now.failed %}<dd class="ids">{% for id in c.now.failed %}<a href="{% url 'checks:run_detail' project.id latest_run.id %}?q={{ id }}">{{ id }}</a>{% endfor %}</dd>{% endif %}{% endif %}{% endfor %}{% endfor %}
+        </dl></div>{% endwith %}{% endfor %}</div>
+      </div>
+      {% else %}<div class="box empty">Аудита ещё не было.{% if can_run %} <form class="inline" method="post" action="{% url 'checks:run_start' project.id %}">{% csrf_token %}<button class="btn sm">Запустить аудит</button></form>{% endif %}</div>{% endif %}
+    </section>
 
-  <section class="panel" aria-labelledby="h-scheme">
-    <div class="panel-head"><h2 id="h-scheme">Схема сегмента</h2><span class="meta">квадрат на узле: итог аудита</span></div>
-    <div class="panel-body grow center">{{ scheme|safe }}</div>
-    {% if active_policy %}<table class="table tight">
-      <thead><tr><th class="first">Политика соединений v{{ active_policy.version }}</th><th class="num last"><a class="meta" href="{% url 'policy:overview' project.id %}">открыть</a></th></tr></thead>
-      <tbody>{% for f in flows %}<tr><td class="first">{{ f.name }}<span class="sub mono">{{ f.src_cidr }} → {{ f.dst_ip }}:{{ f.port }}</span></td>
-        <td class="num last"><span class="st {% if f.action == 'ALLOW' %}s-pass{% else %}s-off{% endif %}">{% if f.action == 'ALLOW' %}разрешён{% else %}запрещён{% endif %}</span></td></tr>{% endfor %}</tbody></table>
-    {% else %}<div class="panel-foot">Активной политики соединений нет · <a href="{% url 'policy:overview' project.id %}">задать политику</a></div>{% endif %}
-  </section>
+    <section class="sec" aria-labelledby="h-nodes">
+      <div class="sec-h"><h2 id="h-nodes">Узлы<span class="n">{{ nodes|length }}</span></h2>
+        <div class="tools">{% if can_run %}<form method="post" action="{% url 'inventory:inventory_run' project.id %}">{% csrf_token %}<button class="btn sm">Инвентаризация</button></form>{% endif %}
+        {% if can_edit %}<a class="btn sm" href="{% url 'inventory:node_create' project.id %}">Добавить узел</a>{% endif %}</div></div>
+      <div class="tw"><table class="t stack" data-keys>
+        <thead><tr><th>Узел</th><th class="p3">Роль</th><th>Управление</th><th class="p2">Рабочие адреса</th><th>Состояние</th><th class="num">Инвентаризация</th></tr></thead>
+        <tbody>{% for n in nodes %}<tr>
+          <td><a class="mono" href="{% url 'inventory:node_detail' project.id n.id %}">{{ n.name }}</a></td>
+          <td class="p3">{{ n.roles|role_names }}</td>
+          <td class="mono">{{ n.mgmt_ip }}</td><td class="mono p2 wrap">{{ n.data_ips|join:", "|default:"–" }}</td>
+          <td><span class="st {{ n.status|st }}">{{ n.get_status_display }}</span></td>
+          <td class="num" title="{{ n.last_inventory_at|full }}">{{ n.last_inventory_at|when }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="empty">Узлов нет.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+
+    <section class="sec" aria-labelledby="h-jobs">
+      <div class="sec-h"><h2 id="h-jobs">Задания</h2><div class="tools"><a href="{% url 'execution:job_list' project.id %}">все задания</a></div></div>
+      <div class="tw"><table class="t stack">
+        <tbody>{% for j in jobs|slice:":5" %}<tr><td><a class="plain" href="{% url 'execution:job_detail' project.id j.id %}">{{ j|job_label }}</a>{% if j.safe_error_code %}<span class="sub">{{ j.phase|default:j.safe_error_code|nb }}</span>{% endif %}</td>
+          <td class="p2">{{ j.requested_by|default:"система" }}</td>
+          <td><span class="st {{ j.state|st }}">{{ j.get_state_display }}</span></td><td class="num" title="{{ j.created_at|full }}">{{ j.created_at|when }}</td></tr>
+        {% empty %}<tr><td class="empty">Заданий нет.</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+
+  <div>
+    <section class="sec" aria-labelledby="h-scheme">
+      <div class="sec-h"><h2 id="h-scheme">Сегмент</h2>{% if active_policy %}<div class="tools"><a href="{% url 'policy:overview' project.id %}">политика v{{ active_policy.version }}</a></div>{% endif %}</div>
+      <div class="box">
+        <div class="scheme-box">{{ scheme|safe }}
+          <div class="netlist">{% for r in netlist %}<div><span class="n">{{ r.title }}</span><span class="c">{{ r.cidr }}</span>
+            <ul>{% for h in r.hosts %}<li>{{ h.name }} <span class="mono">{{ h.ip }}</span></li>{% endfor %}</ul></div>{% endfor %}</div>
+        </div>
+        {% if active_policy %}<table class="t tight"><tbody>{% for f in flows %}<tr><td>{{ f.name }}<span class="sub mono">{{ f.src_cidr }} → {{ f.dst_ip }}:{{ f.port }}</span></td>
+          <td class="num">{% if f.action == 'ALLOW' %}разрешён{% else %}<span class="muted">запрещён</span>{% endif %}</td></tr>{% endfor %}</tbody></table>
+        {% else %}<div class="box-foot">Политики нет · <a href="{% url 'policy:overview' project.id %}">задать</a></div>{% endif %}
+      </div>
+    </section>
+
+    <section class="sec" aria-labelledby="h-prot">
+      <div class="sec-h"><h2 id="h-prot">Проверка защиты</h2><div class="tools"><a href="{% url 'ids:protection' project.id %}">сценарии</a></div></div>
+      {% if protection %}<div class="tw"><table class="t tight stack">
+        <tbody>{% for t in protection %}<tr><td><a class="plain" href="{% url 'ids:protection_detail' project.id t.id %}">{{ t.get_scenario_display }}</a><span class="sub" title="{{ t.created_at|full }}">{{ t.created_at|when }}</span></td>
+          <td class="num"><span class="st {{ t.verdict|st }}">{{ t.get_verdict_display }}</span></td></tr>{% endfor %}</tbody></table></div>
+      {% else %}<div class="box empty">Сценарии не запускались.</div>{% endif %}
+    </section>
+  </div>
 </div>
-
-<div class="grid g-2-1 stretch section-gap">
-  <section class="panel" aria-labelledby="h-nodes">
-    <div class="panel-head"><h2 id="h-nodes">Узлы</h2>
-      <div class="actions">{% if can_run %}<form method="post" action="{% url 'inventory:inventory_run' project.id %}">{% csrf_token %}<button class="btn sm">Инвентаризация всех узлов</button></form>{% endif %}
-      {% if can_edit %}<a class="btn sm" href="{% url 'inventory:node_create' project.id %}">Добавить узел</a>{% endif %}</div></div>
-    <div class="table-wrap grow"><table class="table">
-      <thead><tr><th class="first">Узел</th><th>Управление</th><th>Рабочие адреса</th><th>Состояние</th><th class="num last">Инвентаризация</th></tr></thead>
-      <tbody>{% for n in nodes %}<tr>
-        <td class="first"><a href="{% url 'inventory:node_detail' project.id n.id %}" class="mono">{{ n.name }}</a><span class="sub">{{ n.roles|role_names }}</span></td>
-        <td class="mono">{{ n.mgmt_ip }}</td><td class="mono">{{ n.data_ips|join:", "|default:"–" }}</td>
-        <td><span class="st {{ n.status|st }}">{{ n.get_status_display }}</span></td>
-        <td class="num last">{{ n.last_inventory_at|date:"d.m.Y H:i"|default:"–" }}</td></tr>
-      {% empty %}<tr><td colspan="5" class="empty">Узлов нет. Добавьте шлюз, сервер и тестовый клиент.</td></tr>{% endfor %}</tbody>
-    </table></div>
-  </section>
-
-  <section class="panel" aria-labelledby="h-prot">
-    <div class="panel-head"><h2 id="h-prot">Проверка защиты</h2><a class="meta" href="{% url 'ids:protection' project.id %}">все сценарии</a></div>
-    {% if protection %}<table class="table grow">
-      <tbody>{% for t in protection %}<tr><td class="first"><a href="{% url 'ids:protection_detail' project.id t.id %}" class="plain" title="{{ t.created_at|date:'d.m.Y H:i' }}">{{ t.get_scenario_display }}</a></td>
-        <td class="last nowrap"><span class="st {{ t.verdict|st }}">{{ t.get_verdict_display }}</span></td></tr>{% endfor %}</tbody></table>
-    <div class="panel-foot muted">Последний запуск {{ protection.0.created_at|date:"d.m.Y H:i" }}</div>
-    {% else %}<div class="empty grow">Сценарии ещё не запускались. Проверка защиты имитирует сканирование, подбор пароля и нагрузку с тестового клиента и показывает, какой уровень защиты сработал.</div>{% endif %}
-  </section>
-</div>
-
-<section class="panel section-gap" aria-labelledby="h-jobs">
-  <div class="panel-head"><h2 id="h-jobs">Последние задания</h2><a class="meta" href="{% url 'execution:job_list' project.id %}">все задания</a></div>
-  <div class="table-wrap"><table class="table">
-    <thead><tr><th class="first">Задание</th><th>Узел</th><th>Кто запустил</th><th>Состояние</th><th class="num last">Создано</th></tr></thead>
-    <tbody>{% for j in jobs %}<tr><td class="first"><a href="{% url 'execution:job_detail' project.id j.id %}" class="plain">{{ j|job_label }}</a>{% if j.safe_error_code %}<span class="sub">{{ j.phase|default:j.safe_error_code }}</span>{% endif %}</td>
-      <td class="mono">{{ j.node.name|default:"–" }}</td><td>{{ j.requested_by|default:"система" }}</td>
-      <td><span class="st {{ j.state|st }}">{{ j.get_state_display }}</span></td><td class="num last">{{ j.created_at|date:"d.m.Y H:i:s" }}</td></tr>
-    {% empty %}<tr><td colspan="5" class="empty">Заданий пока нет.</td></tr>{% endfor %}</tbody>
-  </table></div>
-</section>
 
 {% if is_admin and not project.is_archived %}
-<div class="section-gap">{% include "core/_confirm.html" with action_url=archive_url label="Перенести проект в архив" question="Перенести проект в архив?" consequence="Проект станет доступен только для чтения: запуск заданий и изменения будут запрещены. Данные, отчёты и журнал сохранятся." confirm="Да, перенести в архив" %}</div>
+<div class="danger-zone">{% include "core/_confirm.html" with action_url=archive_url label="Перенести проект в архив" question="Перенести проект в архив?" consequence="Проект станет доступен только для чтения: запуск заданий и изменения будут запрещены. Данные, отчёты и журнал сохранятся." confirm="Да, перенести в архив" %}</div>
 {% endif %}
 {% endblock %}

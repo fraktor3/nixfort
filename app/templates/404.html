@@ -1,3 +1,3 @@
-{% extends "base.html" %}{% block title %}Не найдено · NIXFORT{% endblock %}
-{% block content %}<div class="page-head"><div><h1>Не найдено</h1><div class="sub">Объект не существует или недоступен вашей учётной записи.</div></div></div>{% endblock %}
-{% block public_content %}<h1>Не найдено</h1><p class="muted">Объект не существует или недоступен.</p>{% endblock %}
+{% extends "base.html" %}{% block title %}Не найдено{% endblock %}
+{% block content %}<div class="head"><div><h1>Не найдено</h1><div class="meta"><span>Объект не существует или недоступен вашей учётной записи.</span></div></div></div>{% endblock %}
+{% block public %}<main class="gate"><div class="gate-box"><h1>Не найдено</h1><a class="btn" href="{% url 'accounts:login' %}">Войти</a></div></main>{% endblock %}

@@ -5,7 +5,7 @@
     {% if field|widget_type == "CheckboxInput" %}
       <label class="check">{{ field }} <span>{{ field.label }}</span></label>
     {% elif field|widget_type == "CheckboxSelectMultiple" %}
-      <span class="label-text">{{ field.label }}</span>
+      <span class="label">{{ field.label }}</span>
       <div class="choices">{% for cb in field %}<label class="check" for="{{ cb.id_for_label }}">{{ cb.tag }} <span>{{ cb.choice_label }}</span></label>{% endfor %}</div>
     {% else %}
       <label for="{{ field.id_for_label }}">{{ field.label }}</label>

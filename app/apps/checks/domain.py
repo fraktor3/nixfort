@@ -82,7 +82,7 @@ def sys_01(facts, ctx):
         FAIL,
         obs,
         "Ubuntu 24.04 / Astra 1.8, amd64",
-        "ОС не поддерживается: NIXFORT не будет вносить изменения на этом узле.",
+        "ОС не поддерживается: изменения на этом узле вноситься не будут.",
     )
 
 
@@ -210,7 +210,7 @@ def fw_02(facts, ctx):
     want = f"таблица inet nixfort с версией политики v{ctx.active_policy_version}"
     if present and meta.get("policy_version") == ctx.active_policy_version:
         return Outcome(PASS, obs, want, "На шлюзе применена текущая версия политики.")
-    why = "таблица NIXFORT отсутствует" if not present else f"применена версия v{meta.get('policy_version')}"
+    why = "управляемая таблица правил отсутствует" if not present else f"применена версия v{meta.get('policy_version')}"
     return Outcome(FAIL, obs, want, f"Политика на шлюзе не соответствует активной: {why}.")
 
 
@@ -230,7 +230,7 @@ def fw_04(facts, ctx):
             NA,
             None,
             ctx.controller_ip,
-            "Правила NIXFORT не применены: входящий доступ к шлюзу не ограничивается (см. FW-02).",
+            "Правила политики не применены: входящий доступ к шлюзу не ограничивается (см. FW-02).",
         )
     sources = n.get("nixfort_input_ssh_sources") or []
     if ctx.controller_ip and ctx.controller_ip in sources:
@@ -246,7 +246,9 @@ def hfw_01(facts, ctx):
     present = req(n, "nixfort_table_present", "nft")
     want = "хостовый экран: input drop, SSH с контроллера, открыты только заявленные порты"
     if not present:
-        return Outcome(FAIL, None, want, "Хостовый межсетевой экран не настроен: таблица NIXFORT отсутствует.")
+        return Outcome(
+            FAIL, None, want, "Хостовый межсетевой экран не настроен: управляемая таблица правил отсутствует."
+        )
     chains = n.get("nixfort_chains") or {}
     inp = (chains.get("input") or {}).get("policy")
     ssh_sources = n.get("nixfort_input_ssh_sources") or []
@@ -377,7 +379,7 @@ CATALOG: tuple[CheckDef, ...] = (
         ("system",),
         "Ubuntu 24.04 / Astra 1.8 amd64",
         None,
-        "Матрица поддержки NIXFORT",
+        "Матрица поддерживаемых ОС",
         sys_01,
     ),
     CheckDef(
@@ -500,13 +502,13 @@ CATALOG: tuple[CheckDef, ...] = (
         ("system", "nft"),
         "nftables, без UFW/firewalld/Docker",
         None,
-        "Архитектура NIXFORT ADR-011",
+        "Архитектурное решение ADR-011",
         fw_01,
     ),
     CheckDef(
         "FW-02",
         "FW",
-        "Политика NIXFORT применена",
+        "Политика сегмента применена",
         "HIGH",
         frozenset({"gateway"}),
         ("nft",),
@@ -536,7 +538,7 @@ CATALOG: tuple[CheckDef, ...] = (
         ("nft",),
         "SSH от контроллера разрешён",
         "nft.apply_policy.v1",
-        "Архитектура NIXFORT §6",
+        "Архитектура, раздел 6",
         fw_04,
     ),
     CheckDef(

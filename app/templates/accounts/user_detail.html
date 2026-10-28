@@ -1,17 +1,17 @@
-{% extends "base.html" %}
-{% block title %}{{ u.username }} · NIXFORT{% endblock %}
+{% extends "base.html" %}{% load nx %}
+{% block title %}{{ u.username }}{% endblock %}
 {% block content %}
-<div class="page-head"><div><div class="crumbs"><a href="{% url 'accounts:user_list' %}">Пользователи</a></div>
-  <div class="title-line"><h1>{{ u.username }}</h1><span class="st {% if u.is_active %}s-pass{% else %}s-off{% endif %}">{{ u.is_active|yesno:"включена,отключена" }}</span></div>
-  <div class="sub">Последний вход {{ u.last_login|date:"d.m.Y H:i"|default:"не выполнялся" }}</div></div>
-  <div class="actions">{% url 'accounts:user_toggle_active' u.pk as toggle_url %}{% if u.is_active %}{% include "core/_confirm.html" with action_url=toggle_url size="md" label="Отключить учётную запись" question="Отключить учётную запись?" consequence="Пользователь не сможет войти; его действия в журнале сохранятся. Включить запись можно обратно." confirm="Да, отключить" %}
-    {% else %}<form method="post" action="{{ toggle_url }}">{% csrf_token %}<button class="btn">Включить учётную запись</button></form>{% endif %}</div></div>
-<div class="grid g-1-1">
-  <section class="panel"><div class="panel-head"><h2>Роли</h2></div>
-    <table class="table"><tbody>{% for r in roles %}<tr><td class="first">{{ r.get_role_display }}<span class="sub">{% if r.project %}в проекте {{ r.project.name }}{% else %}во всех проектах{% endif %}</span></td>
-      <td class="last num"><form method="post" action="{% url 'accounts:role_revoke' u.pk r.id %}">{% csrf_token %}<button class="link-btn danger">Снять роль</button></form></td></tr>
-    {% empty %}<tr><td class="empty">Ролей нет: пользователь не видит ни одного проекта.</td></tr>{% endfor %}</tbody></table></section>
-  <section class="panel"><div class="panel-head"><h2>Назначить роль</h2></div>
-    <div class="panel-body"><form method="post">{% include "core/_form.html" %}<button class="btn primary">Назначить</button></form></div></section>
+<div class="head"><div><div class="crumbs"><a href="{% url 'accounts:user_list' %}">Пользователи</a></div>
+  <div class="t1"><h1>{{ u.username }}</h1><span class="st {% if u.is_active %}s-pass{% else %}s-off{% endif %}">{{ u.is_active|yesno:"включена,отключена" }}</span></div>
+  <div class="meta"><span>последний вход {{ u.last_login|full|default:"не выполнялся" }}</span></div></div>
+  <div class="actions">{% url 'accounts:user_toggle_active' u.pk as toggle_url %}{% if not u.is_active %}<form method="post" action="{{ toggle_url }}">{% csrf_token %}<button class="btn">Включить учётную запись</button></form>{% endif %}</div></div>
+<div class="cols even">
+  <section class="sec"><div class="sec-h"><h2>Роли</h2></div>
+    <div class="tw"><table class="t"><tbody>{% for r in roles %}<tr><td>{{ r.get_role_display }}<span class="sub">{% if r.project %}проект {{ r.project.name }}{% else %}все проекты{% endif %}</span></td>
+      <td class="num"><form method="post" action="{% url 'accounts:role_revoke' u.pk r.id %}">{% csrf_token %}<button class="link danger">Снять роль</button></form></td></tr>
+    {% empty %}<tr><td class="empty">Ролей нет: проекты не видны.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="sec"><div class="sec-h"><h2>Назначить роль</h2></div>
+    <form method="post" class="form box">{% include "core/_form.html" %}<button class="btn primary">Назначить</button></form></section>
 </div>
+{% if u.is_active %}<div class="danger-zone">{% include "core/_confirm.html" with action_url=toggle_url label="Отключить учётную запись" question="Отключить учётную запись?" consequence="Пользователь не сможет войти; его действия в журнале сохранятся. Включить запись можно обратно." confirm="Да, отключить" %}</div>{% endif %}
 {% endblock %}

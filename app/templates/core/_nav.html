@@ -1,22 +1,36 @@
-<a class="brand" href="{% url 'core:dashboard' %}">{% include "core/_mark.html" %}NIXFORT</a>
 {% if nav_project %}
-<a class="scope" href="{% url 'inventory:project_detail' nav_project.id %}" title="{{ nav_project.name }}"><span class="label">Проект</span><span class="name">{{ nav_project.name }}</span></a>
-<a class="scope-switch" href="{% url 'inventory:project_list' %}">Все проекты</a>
+<details class="scope">
+  <summary><span class="k">Проект</span><span class="v"><span>{{ nav_project.name }}</span></span></summary>
+  <div class="scope-list">{% for p in nav_projects %}<a href="{% url 'inventory:project_detail' p.id %}"{% if p.id == nav_project.id %} aria-current="true"{% endif %}>{{ p.name }}</a>{% endfor %}
+    <a class="all" href="{% url 'inventory:project_list' %}">Все проекты</a></div>
+</details>
+{% endif %}
+{% if not in_sheet %}<button type="button" class="jump-btn" data-jump><span>Перейти…</span><kbd>/</kbd></button>{% endif %}
+{% if nav_project %}
 {% for g in nav_groups %}{% if g.title %}<div class="nav-group">{{ g.title }}</div>{% endif %}
-<ul class="nav{% if not g.title %} nav-top{% endif %}">{% for i in g.items %}<li><a href="{% url i.url nav_project.id %}"{% if i.current %} aria-current="page"{% endif %}><span>{{ i.label }}</span>{% if i.count %}<span class="count" title="Планы ждут утверждения">{{ i.count }} ждут</span>{% elif i.live %}<span class="live" title="Задания в очереди или выполняются">{{ i.live }}</span>{% endif %}</a></li>{% endfor %}</ul>
+<ul class="nav">{% for i in g.items %}<li><a href="{% url i.url nav_project.id %}"{% if i.current %} aria-current="page"{% endif %}><span>{{ i.label }}</span>{% if i.count %}<span class="count" title="Планы ждут утверждения">{{ i.count }} ждут</span>{% elif i.live %}<span class="live" title="Задания в очереди или выполняются">{{ i.live }}</span>{% endif %}</a></li>{% endfor %}</ul>
 {% endfor %}
 {% else %}
-<ul class="nav nav-top">
+<ul class="nav">
   <li><a href="{% url 'core:dashboard' %}"{% if nav_here == "core:dashboard" %} aria-current="page"{% endif %}>Обзор</a></li>
   <li><a href="{% url 'inventory:project_list' %}"{% if nav_here == "inventory:project_list" or nav_here == "inventory:project_create" %} aria-current="page"{% endif %}>Проекты</a></li>
 </ul>
 {% endif %}
 <div class="side-foot">
+  <div class="nav-group">Система</div>
   <ul class="nav">
     <li><a href="{% url 'core:audit_log' %}"{% if nav_here == "core:audit_log" %} aria-current="page"{% endif %}>Журнал действий</a></li>
     {% if can_manage_users %}<li><a href="{% url 'accounts:user_list' %}"{% if nav_here|slice:":9" == "accounts:" %} aria-current="page"{% endif %}>Пользователи</a></li>{% endif %}
   </ul>
-  <div class="user-row"><div class="who"><b>{{ user.username }}</b><span>{{ nav_role|default:"роль не назначена" }}</span></div>
-    <form method="post" action="{% url 'accounts:logout' %}" class="inline">{% csrf_token %}<button class="btn sm">Выйти</button></form></div>
-  <div class="legal"><a href="{% url 'core:terms' %}">Условия использования</a><a href="{% url 'core:privacy' %}">Конфиденциальность</a></div>
+  <details class="user">
+    <summary><span class="who"><b>{{ user.username }}</b><span>{{ nav_role|default:"роль не назначена" }}</span></span></summary>
+    <div class="user-menu">
+      <button type="button" data-jump>Быстрый переход</button>
+      <button type="button" data-density>Плотные строки</button>
+      <a href="{% url 'core:terms' %}">Условия использования</a>
+      <a href="{% url 'core:privacy' %}">Конфиденциальность</a>
+      <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit">Выйти</button></form>
+      <div class="build">сборка <span class="mono">{{ build }}</span></div>
+    </div>
+  </details>
 </div>

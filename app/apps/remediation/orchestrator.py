@@ -178,13 +178,13 @@ def _verify_suricata(client: AgentClient, item: RemediationItem, env: dict | Non
     if not (eve.get("enabled") and eve.get("readable")):
         problems.append("журнал EVE недоступен")
     if item.params.get("test_rules") and not res.get("nixfort_test_rule_loaded"):
-        problems.append("правила NIXFORT не загружены")
+        problems.append("тестовые правила не загружены")
     evidence = {
         k: res.get(k) for k in ("service", "version", "af_packet_interfaces", "eve", "nixfort_test_rule_loaded")
     }
     if problems:
         return False, "; ".join(problems), evidence
-    return True, f"Suricata {res.get('version')} работает на {iface}, EVE пишется, правила NIXFORT загружены", evidence
+    return True, f"Suricata {res.get('version')} работает на {iface}, EVE пишется, тестовые правила загружены", evidence
 
 
 def _verify_host_fw(client: AgentClient, item: RemediationItem, env: dict | None = None) -> tuple[bool, str, dict]:

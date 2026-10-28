@@ -1,67 +1,56 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}План исправлений · {{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="head">
   <div><div class="crumbs"><a href="{% url 'remediation:plan_list' project.id %}">Исправления</a></div>
-    <div class="title-line"><h1>План исправлений {{ plan.created_at|date:"d.m.Y H:i" }}</h1><span class="st big {{ plan.state|st }}">{{ plan.get_state_display }}</span></div>
-    <div class="sub">По <a href="{% url 'checks:run_detail' project.id plan.audit_run_id %}">аудиту {{ plan.audit_run.created_at|date:"d.m.Y H:i" }}</a>{% if plan.approved_by %} · утвердил {{ plan.approved_by }} {{ plan.approved_at|date:"d.m.Y H:i" }}{% endif %}{% if plan.post_audit_run_id %} · <a href="{% url 'checks:run_detail' project.id plan.post_audit_run_id %}">повторный аудит</a>{% endif %}{% if plan.job %} · <a href="{% url 'execution:job_detail' project.id plan.job_id %}">журнал выполнения</a>{% endif %}</div></div>
+    <div class="t1"><h1>План {{ plan.created_at|full }}</h1>{% if plan.state == "DRAFT" %}<span class="st s-unknown">ждёт утверждения</span>{% else %}<span class="st {{ plan.state|st }}">{{ plan.get_state_display }}</span>{% endif %}</div>
+    <div class="meta"><span>шагов {{ items|length }} на {{ node_count }} узл.</span><span>риск {{ plan.risk|risk_ru }}</span><span><a href="{% url 'checks:run_detail' project.id plan.audit_run_id %}">аудит {{ plan.audit_run.created_at|when }}</a></span>{% if plan.approved_by %}<span>утвердил {{ plan.approved_by }} {{ plan.approved_at|when }}</span>{% endif %}{% if plan.post_audit_run_id %}<span><a href="{% url 'checks:run_detail' project.id plan.post_audit_run_id %}">повторный аудит</a></span>{% endif %}{% if plan.job %}<span><a href="{% url 'execution:job_detail' project.id plan.job_id %}">журнал выполнения</a></span>{% endif %}</div></div>
+  {% if can_reject %}<div class="actions"><form method="post" action="{% url 'remediation:plan_reject' project.id plan.id %}">{% csrf_token %}<button class="btn">Отклонить</button></form></div>{% endif %}
 </div>
 
-<div class="figures">
-  <div><div class="label">Шагов</div><div class="value">{{ items|length }}</div></div>
-  <div><div class="label">Узлов</div><div class="value">{{ node_count }}</div></div>
-  <div><div class="label">Риск плана</div><div class="value">{{ plan.risk|risk_ru }}</div></div>
-  <div><div class="label">Не исправляется автоматически</div><div class="value">{{ plan.not_covered|length }}</div></div>
-</div>
-
-{% if can_approve %}<form method="post" action="{% url 'remediation:plan_approve' project.id plan.id %}" class="approve section-gap">{% csrf_token %}
-  <div class="row-flex between">
-    <label class="check mb-0" for="confirm"><input type="checkbox" name="confirm" id="confirm"><span>Я проверил шаги и риски. Изменения будут применены на узлах с автоматическим откатом при сбое.</span></label>
-    <div class="actions"><button class="btn primary">Утвердить и выполнить</button></div>
-  </div>
+{% if can_approve %}<form method="post" action="{% url 'remediation:plan_approve' project.id plan.id %}" class="confirm-line mb-16">{% csrf_token %}
+  <label class="check" for="confirm"><input type="checkbox" name="confirm" id="confirm"><span>Шаги и риски проверены. Изменения применяются с автоматическим откатом при сбое.</span></label>
+  <button class="btn primary">Утвердить и выполнить</button>
 </form>{% endif %}
-{% if can_reject %}<form method="post" action="{% url 'remediation:plan_reject' project.id plan.id %}" class="mt-8">{% csrf_token %}<button class="btn sm">Отклонить план</button></form>{% endif %}
 
-<section class="panel section-gap" aria-labelledby="h-steps">
-  <div class="panel-head"><h2 id="h-steps">Шаги</h2><span class="meta">каждый шаг: снимок настроек, проверка конфигурации, таймер автоотката на узле, применение, проверка новым SSH-соединением, подтверждение</span></div>
-  <div class="table-wrap"><table class="table">
-    <thead><tr><th class="first">Узел</th><th>Действие</th><th>Исправляет</th><th>Риск</th><th>Откат</th><th class="last">Итог</th></tr></thead>
-    <tbody>{% for i in items %}<tr><td class="first mono">{{ i.node.name }}</td>
-      <td>{{ i.description }}<span class="sub mono">{{ i.action_id }}</span></td>
-      <td class="mono small">{{ i.check_ids|join:" " }}</td><td>{{ i.risk|risk_ru }}</td>
-      <td>{% if i.reversible %}автоматический{% else %}<span class="st s-unknown">необратимо</span>{% endif %}</td>
-      <td class="last"><span class="st {{ i.state|st }}">{{ i.get_state_display }}</span>{% if i.result.reason %}<span class="sub">{{ i.result.reason }}</span>{% endif %}</td></tr>
+<section class="sec" aria-labelledby="h-steps">
+  <div class="sec-h"><h2 id="h-steps">Шаги<span class="n">{{ items|length }}</span></h2><div class="tools"><span class="muted" title="снимок настроек, проверка конфигурации, таймер автоотката на узле, применение, проверка новым SSH-соединением, подтверждение">каждый шаг с автооткатом</span></div></div>
+  <div class="tw"><table class="t stack">
+    <thead><tr><th>Действие</th><th>Узел</th><th class="p2">Исправляет</th><th>Риск</th><th class="p3">Откат</th><th>Итог</th></tr></thead>
+    <tbody>{% for i in items %}<tr><td>{{ i.description|nb }}<span class="sub mono">{{ i.action_id }}</span></td><td class="mono">{{ i.node.name }}</td>
+      <td class="mono xs p2 wrap">{{ i.check_ids|join:" " }}</td><td data-l="риск">{{ i.risk|risk_ru }}</td>
+      <td class="p3">{% if i.reversible %}автоматический{% else %}<span class="st s-unknown">необратимо</span>{% endif %}</td>
+      <td><span class="st {{ i.state|st }}">{{ i.get_state_display }}</span>{% if i.result.reason %}<span class="sub">{{ i.result.reason|nb }}</span>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="6" class="empty">Шагов нет.</td></tr>{% endfor %}</tbody>
   </table></div>
 </section>
 
-{% if plan.not_covered %}<section class="panel section-gap" aria-labelledby="h-nc">
-  <div class="panel-head"><h2 id="h-nc">Не исправляется автоматически</h2></div>
-  <table class="table"><tbody>{% for n in plan.not_covered %}<tr><td class="first mono nowrap">{{ n.node }}</td><td class="mono nowrap">{{ n.check_id }}</td><td class="last">{{ n.reason }}</td></tr>{% endfor %}</tbody></table>
+{% if plan.not_covered %}<section class="sec" aria-labelledby="h-nc">
+  <div class="sec-h"><h2 id="h-nc">Вручную<span class="n">{{ plan.not_covered|length }}</span></h2></div>
+  <div class="tw"><table class="t stack"><tbody>{% for n in plan.not_covered %}<tr><td><span class="id">{{ n.check_id }}</span><span class="mono">{{ n.node }}</span></td><td>{{ n.reason|nb }}</td></tr>{% endfor %}</tbody></table></div>
 </section>{% endif %}
 
-{% if probe_matrix %}<section class="panel section-gap" aria-labelledby="h-probes">
-  <div class="panel-head"><h2 id="h-probes">Пробы соединений</h2><span class="meta">блокировка доказана, только если до изменения соединение было открыто</span></div>
-  <div class="table-wrap"><table class="table">
-    <thead><tr><th class="first">Поток</th><th>Ожидание</th><th>Откуда и куда</th><th>До изменения</th><th>После изменения</th><th class="last">После отката</th></tr></thead>
-    <tbody>{% for r in probe_matrix %}<tr><td class="first">{{ r.name }}{% if r.critical %} <span class="tag crit">критичный</span>{% endif %}</td>
-      <td>{% if r.action == 'ALLOW' %}работает{% else %}заблокирован{% endif %}</td>
-      <td class="mono small">{{ r.src }} → {{ r.dst }}<span class="sub">с {{ r.probe|default:"–" }}</span></td>
-      {% for ph in "BASELINE POST AFTER_ROLLBACK"|split %}{% with t=r.phases|get_item:ph %}<td{% if forloop.last %} class="last"{% endif %}>{% if t %}<span class="mono">{{ t.result }}</span>
-        {% if ph != "BASELINE" %}<span class="sub"><span class="st {{ t.verdict|st }}">{{ t.get_verdict_display }}</span> {{ t.note }}</span>{% endif %}{% else %}<span class="muted">–</span>{% endif %}</td>{% endwith %}{% endfor %}</tr>
+{% if probe_matrix %}<section class="sec" aria-labelledby="h-probes">
+  <div class="sec-h"><h2 id="h-probes">Пробы соединений</h2><div class="tools"><span class="muted">блокировка доказана, только если до изменения соединение было открыто</span></div></div>
+  <div class="tw"><table class="t stack">
+    <thead><tr><th>Поток</th><th class="p2">Откуда и куда</th><th>До</th><th>После</th><th>После отката</th></tr></thead>
+    <tbody>{% for r in probe_matrix %}<tr><td>{{ r.name }}{% if r.critical %} <span class="tag crit">критичный</span>{% endif %}<span class="sub">{% if r.action == 'ALLOW' %}должен работать{% else %}должен блокироваться{% endif %}</span></td>
+      <td class="mono xs p2">{{ r.src }} → {{ r.dst }}<span class="sub">с {{ r.probe|default:"–" }}</span></td>
+      {% for ph in "BASELINE POST AFTER_ROLLBACK"|split %}{% with t=r.phases|get_item:ph %}<td data-l="{% if ph == 'BASELINE' %}до{% elif ph == 'POST' %}после{% else %}после отката{% endif %}">{% if t %}<span class="mono">{{ t.result }}</span>
+        {% if ph != "BASELINE" %}<span class="sub"><span class="st {{ t.verdict|st }}">{{ t.get_verdict_display }}</span> {{ t.note|nb }}</span>{% endif %}{% else %}<span class="muted">–</span>{% endif %}</td>{% endwith %}{% endfor %}</tr>
     {% endfor %}</tbody>
   </table></div>
 </section>{% endif %}
 
-{% if before_after %}<section class="panel section-gap" aria-labelledby="h-ba">
-  <div class="panel-head"><h2 id="h-ba">До и после</h2><span class="meta">изменились {{ changed_count }} из {{ before_after|length }} проверок</span></div>
-  <div class="table-wrap"><table class="table">
-    <thead><tr><th class="first">Узел</th><th>Проверка</th><th>До</th><th class="last">После</th></tr></thead>
-    <tbody>{% for r in before_after %}{% if r.changed %}<tr><td class="first mono">{{ r.node }}</td><td><span class="id">{{ r.check_id }}</span> {{ r.title }}</td>
-      <td><span class="st {{ r.before|st }}">{{ r.before|status_ru }}</span></td><td class="last"><span class="st {{ r.after|st }}">{{ r.after|status_ru }}</span></td></tr>{% endif %}{% endfor %}</tbody>
+{% if before_after %}<section class="sec" aria-labelledby="h-ba">
+  <div class="sec-h"><h2 id="h-ba">До и после</h2><div class="tools"><span class="muted">изменились {{ changed_count }} из {{ before_after|length }}</span></div></div>
+  <div class="tw"><table class="t stack">
+    <thead><tr><th>Проверка</th><th>Узел</th><th>До</th><th>После</th></tr></thead>
+    <tbody>{% for r in before_after %}{% if r.changed %}<tr><td><span class="id">{{ r.check_id }}</span>{{ r.title|nb }}</td><td class="mono">{{ r.node }}</td>
+      <td data-l="до"><span class="st {{ r.before|st }}">{{ r.before|status_ru }}</span></td><td data-l="после"><span class="st {{ r.after|st }}">{{ r.after|status_ru }}</span></td></tr>{% endif %}{% endfor %}</tbody>
   </table></div>
-  <details class="more panel-foot"><summary>Без изменений: {{ unchanged_count }}</summary>
-    <table class="table tight mt-8"><tbody>{% for r in before_after %}{% if not r.changed %}<tr><td class="first mono">{{ r.node }}</td><td><span class="id">{{ r.check_id }}</span> {{ r.title }}</td><td class="last"><span class="st {{ r.after|st }}">{{ r.after|status_ru }}</span></td></tr>{% endif %}{% endfor %}</tbody></table>
-  </details>
+  {% if unchanged_count %}<details class="mt-8"><summary class="small">Без изменений: {{ unchanged_count }}</summary>
+    <div class="tw mt-8"><table class="t tight stack"><tbody>{% for r in before_after %}{% if not r.changed %}<tr><td><span class="id">{{ r.check_id }}</span>{{ r.title|nb }}</td><td class="mono">{{ r.node }}</td><td><span class="st {{ r.after|st }}">{{ r.after|status_ru }}</span></td></tr>{% endif %}{% endfor %}</tbody></table></div>
+  </details>{% endif %}
 </section>{% endif %}
 {% endblock %}

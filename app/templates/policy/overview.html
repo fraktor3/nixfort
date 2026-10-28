@@ -1,49 +1,46 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}Политика соединений · {{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><h1>Политика соединений</h1><div class="sub">Какие соединения между сетями должны работать, а какие должны быть заблокированы. По ней строятся правила межсетевого экрана и проверяются результаты: каждый поток пробуется реальным TCP-подключением с тестового узла.</div></div>
+<div class="head">
+  <div><div class="t1"><h1>Политика соединений</h1>{% if shown %}<span class="st {% if shown.status == 'DRAFT' %}s-unknown{% else %}{{ shown.status|st }}{% endif %}">v{{ shown.version }} · {{ shown.get_status_display|lower }}</span>{% endif %}</div>
+    <div class="meta">{% if shown %}<span title="{% if shown.activated_at %}{{ shown.activated_at|full }}{% else %}{{ shown.created_at|full }}{% endif %}">{% if shown.activated_at %}активирована {{ shown.activated_at|when }}{% else %}создана {{ shown.created_at|when }}{% endif %}</span>{% endif %}</div></div>
   <div class="actions">
-    {% if active and draft %}<a class="btn" href="?show={% if shown == draft %}active{% else %}draft{% endif %}">Показать {% if shown == draft %}активную{% else %}черновик{% endif %}</a>{% endif %}
+    {% if active and draft %}<a class="btn" href="?show={% if shown == draft %}active{% else %}draft{% endif %}">{% if shown == draft %}Активная версия{% else %}Черновик{% endif %}</a>{% endif %}
     {% if can_edit and not draft %}<form method="post" action="{% url 'policy:draft_create' project.id %}">{% csrf_token %}<button class="btn primary">Изменить политику</button></form>{% endif %}
+    {% if shown.editable and can_activate %}<form method="post" action="{% url 'policy:activate' project.id %}">{% csrf_token %}<button class="btn primary">Активировать v{{ shown.version }}</button></form>{% endif %}
   </div>
 </div>
-<div class="grid g-2-1 stretch">
-<div class="stack">
-{% if shown %}
-<section class="panel" aria-labelledby="h-v">
-  <div class="panel-head"><div class="title-line"><h2 id="h-v">Версия v{{ shown.version }}</h2><span class="st {{ shown.status|st }}">{{ shown.get_status_display }}</span></div>
-    <span class="meta">{% if shown.activated_at %}активирована {{ shown.activated_at|date:"d.m.Y H:i" }}{% else %}создана {{ shown.created_at|date:"d.m.Y H:i" }}{% endif %}</span></div>
-  {% for c in conflicts %}<div class="finding">{% if c.kind == 'contradiction' %}<span class="st s-fail">Противоречие</span>{% else %}<span class="st s-unknown">Предупреждение</span>{% endif %} {{ c.message }}</div>{% endfor %}
-  <div class="table-wrap"><table class="table">
-    <thead><tr><th class="first">Поток</th><th>Источник</th><th>Назначение</th><th>Ожидание</th><th>Проба с узла</th><th class="last"></th></tr></thead>
-    <tbody>{% for f in flows %}<tr><td class="first">{{ f.name }}{% if f.critical %} <span class="tag crit" title="Нарушение после изменения приводит к откату">критичный</span>{% endif %}</td>
-      <td class="mono">{{ f.src_cidr }}</td><td class="mono">{{ f.dst_ip }}:{{ f.port }}<span class="sub">{{ f.dst_node.name }}</span></td>
-      <td><span class="st {% if f.action == 'ALLOW' %}s-pass{% else %}s-off{% endif %}">{% if f.action == 'ALLOW' %}разрешён{% else %}запрещён{% endif %}</span></td>
-      <td class="mono">{{ f.probe_from.name|default:"не задано" }}</td>
-      <td class="last num">{% if shown.editable and can_edit %}<a href="{% url 'policy:flow_edit' project.id f.id %}">изменить</a>
-        <form class="inline" method="post" action="{% url 'policy:flow_delete' project.id f.id %}">{% csrf_token %} · <button class="link-btn danger" title="Удаляется только из черновика; активная версия не меняется">удалить</button></form>{% endif %}</td></tr>
-    {% empty %}<tr><td colspan="6" class="empty">Потоков нет. Добавьте хотя бы один разрешённый критичный поток: без него нельзя доказать, что изменения не сломали нужный сервис.</td></tr>{% endfor %}</tbody>
-  </table></div>
-  {% if shown.editable %}<div class="panel-foot row-flex">
-    {% if can_edit %}<a class="btn sm" href="{% url 'policy:flow_create' project.id %}">Добавить поток</a>{% endif %}
-    {% if can_activate %}<form method="post" action="{% url 'policy:activate' project.id %}">{% csrf_token %}<button class="btn sm primary">Активировать v{{ shown.version }}</button></form>{% endif %}
-  </div>{% endif %}
-</section>
-{% else %}<section class="panel"><div class="empty">Политики ещё нет.{% if can_edit %} Нажмите «Изменить политику», чтобы создать черновик и добавить потоки.{% endif %}</div></section>{% endif %}
+{% for c in conflicts %}<div class="note{% if c.kind == 'contradiction' %} bad{% endif %} mb-8"><b>{% if c.kind == 'contradiction' %}Противоречие.{% else %}Предупреждение.{% endif %}</b> {{ c.message|nb }}</div>{% endfor %}
+<div class="cols">
+  <section class="sec" aria-labelledby="h-v">
+    <div class="sec-h"><h2 id="h-v">Потоки{% if shown %}<span class="n">{{ flows|length }}</span>{% endif %}</h2>
+      {% if shown.editable and can_edit %}<div class="tools"><a class="btn sm" href="{% url 'policy:flow_create' project.id %}">Добавить поток</a></div>{% endif %}</div>
+    {% if shown %}<div class="tw"><table class="t stack">
+      <thead><tr><th>Поток</th><th>Источник</th><th>Назначение</th><th>Ожидание</th><th class="p2">Проба с узла</th>{% if shown.editable and can_edit %}<th></th>{% endif %}</tr></thead>
+      <tbody>{% for f in flows %}<tr><td>{{ f.name }}{% if f.critical %} <span class="tag crit" title="Нарушение после изменения приводит к откату">критичный</span>{% endif %}</td>
+        <td class="mono" data-l="из">{{ f.src_cidr }}</td><td class="mono" data-l="в">{{ f.dst_ip }}:{{ f.port }}<span class="sub">{{ f.dst_node.name }}</span></td>
+        <td>{% if f.action == 'ALLOW' %}разрешён{% else %}запрещён{% endif %}</td>
+        <td class="mono p2">{{ f.probe_from.name|default:"не задано" }}</td>
+        {% if shown.editable and can_edit %}<td class="num"><a href="{% url 'policy:flow_edit' project.id f.id %}">изменить</a>
+          <form class="inline" method="post" action="{% url 'policy:flow_delete' project.id f.id %}">{% csrf_token %} · <button class="link danger">удалить</button></form></td>{% endif %}</tr>
+      {% empty %}<tr><td colspan="6" class="empty">Потоков нет. Нужен хотя бы один разрешённый критичный поток.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="box empty">Политики нет.</div>{% endif %}
+  </section>
+  <section class="sec" aria-labelledby="h-proof">
+    <div class="sec-h"><h2 id="h-proof">Проверено пробами</h2><div class="tools"><a href="{% url 'policy:connectivity' project.id %}">все проверки</a></div></div>
+    <div class="box">
+    {% if proof %}<div class="box-body"><b class="{% if proof.ok != proof.total %}st s-fail{% endif %}">{{ proof.ok }} из {{ proof.total }}</b> потоков соответствуют<span class="sub" title="{{ proof.at|full }}">{{ proof.phase }}, {{ proof.at|when }}</span></div>
+      <table class="t tight"><tbody>{% for r in proof.rows %}<tr><td>{{ r.flow_name }}<span class="sub mono">{{ r.dst_ip }}:{{ r.port }} · {{ r.result }}</span></td><td class="num"><span class="st {{ r.verdict|st }}">{{ r.get_verdict_display }}</span></td></tr>{% endfor %}</tbody></table>
+    {% else %}<div class="empty">Пробами не проверялась.</div>{% endif %}
+    {% if can_run and active %}<div class="box-foot"><form method="post" action="{% url 'policy:connectivity_run' project.id %}">{% csrf_token %}<button class="btn sm">Проверить соединения</button></form></div>{% endif %}
+    </div>
+  </section>
 </div>
-<section class="panel" aria-labelledby="h-proof"><div class="panel-head"><h2 id="h-proof">Подтверждено пробами</h2><a class="meta" href="{% url 'policy:connectivity' project.id %}">все проверки</a></div>
-  {% if proof %}<div class="panel-body"><div class="title-line"><span class="st big {% if proof.ok == proof.total %}s-pass{% else %}s-fail{% endif %}">{{ proof.ok }} из {{ proof.total }} потоков соответствуют</span></div>
-    <div class="sub">{{ proof.phase }}, {{ proof.at|date:"d.m.Y H:i" }}</div></div>
-    <table class="table tight grow"><tbody>{% for r in proof.rows %}<tr><td class="first">{{ r.flow_name }}<span class="sub mono">{{ r.dst_ip }}:{{ r.port }} · {{ r.result }}</span></td><td class="last num"><span class="st {{ r.verdict|st }}">{{ r.get_verdict_display }}</span></td></tr>{% endfor %}</tbody></table>
-  {% else %}<div class="empty grow">Политику ещё не проверяли реальными подключениями. Проверка соединений пробует каждый поток с тестового узла и показывает, работает ли разрешённое и заблокировано ли запрещённое.</div>{% endif %}
-  {% if can_run and active %}<div class="panel-foot"><form method="post" action="{% url 'policy:connectivity_run' project.id %}">{% csrf_token %}<button class="btn sm">Проверить соединения сейчас</button></form></div>{% endif %}
-</section>
-</div>
-<section class="panel section-gap" aria-labelledby="h-hist">
-  <div class="panel-head"><h2 id="h-hist">История версий</h2></div>
-  <div class="table-wrap"><table class="table"><tbody>{% for v in versions %}<tr><td class="first">v{{ v.version }}</td><td><span class="st {{ v.status|st }}">{{ v.get_status_display }}</span></td><td>{{ v.change_summary|default:"" }}</td>
-    <td class="num last">создана {{ v.created_at|date:"d.m.Y H:i" }}{% if v.activated_at %}<span class="sub">активирована {{ v.activated_at|date:"d.m.Y H:i" }}</span>{% endif %}</td></tr>
+<details class="sec">
+  <summary class="sec-h"><h2>История версий<span class="n">{{ versions|length }}</span></h2></summary>
+  <div class="tw"><table class="t stack"><tbody>{% for v in versions %}<tr><td>v{{ v.version }} <span class="st {% if v.status == 'DRAFT' %}s-unknown{% else %}{{ v.status|st }}{% endif %}">{{ v.get_status_display|lower }}</span></td><td>{{ v.change_summary|default:"" }}</td>
+    <td class="num" title="{{ v.created_at|full }}">{{ v.created_at|when }}{% if v.activated_at %}<span class="sub">активирована {{ v.activated_at|when }}</span>{% endif %}</td></tr>
   {% empty %}<tr><td class="empty">Версий нет.</td></tr>{% endfor %}</tbody></table></div>
-</section>
+</details>
 {% endblock %}

@@ -1,7 +1,0 @@
-<div class="figures">
-  <div><div class="label">Соответствует</div><div class="value">{{ total.PASS|default:0 }}</div></div>
-  <div><div class="label">Нарушение</div><div class="value">{% if total.FAIL %}<span class="st big s-fail">{{ total.FAIL }}</span>{% else %}0{% endif %}</div></div>
-  <div><div class="label">Нет данных</div><div class="value">{{ total.UNKNOWN|default:0 }}</div></div>
-  <div><div class="label">Ошибка проверки</div><div class="value">{{ total.ERROR|default:0 }}</div></div>
-  <div><div class="label">Не применимо</div><div class="value">{{ total.NOT_APPLICABLE|default:0 }}</div><div class="fnote">к роли узла</div></div>
-</div>

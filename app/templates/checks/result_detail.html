@@ -1,22 +1,7 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}{{ r.check_id }} · {{ r.node.name }}{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><div class="crumbs"><a href="{% url 'checks:run_list' project.id %}">Аудит</a> / <a href="{% url 'checks:run_detail' project.id r.audit_run_id %}">{{ r.audit_run.created_at|date:"d.m.Y H:i" }}</a></div>
-    <div class="title-line"><h1>{{ check.title }}</h1><span class="st big {{ r.status|st }}">{{ r.get_status_display }}</span></div>
-    <div class="sub"><span class="mono">{{ r.check_id }}</span> · узел <span class="mono">{{ r.node.name }}</span> · важность {{ check.severity|severity_ru }}</div></div>
-</div>
-<div class="grid g-2-1">
-  <section class="panel"><div class="panel-head"><h2>Вывод</h2></div>
-    <div class="panel-body"><p>{{ r.explanation }}</p>
-    <table class="kv">
-      <tr><th>Ожидается</th><td class="mono">{{ r.expected|default:"–" }}</td></tr>
-      <tr><th>Наблюдается</th><td class="mono">{{ r.observed|default:"–" }}</td></tr>
-      <tr><th>Исправление</th><td class="mono">{{ check.remediation|default:"только рекомендация: автоматическое изменение не предусмотрено" }}</td></tr>
-      <tr><th>Источник требования</th><td>{{ check.source_ref }}</td></tr>
-    </table></div></section>
-  <section class="panel"><div class="panel-head"><h2>Доказательства</h2></div>
-    <table class="table"><tbody>{% for e in evidence %}<tr><td class="first last"><span class="mono">{{ e.source }}</span><span class="sub">собрано {{ e.collected_at|date:"d.m.Y H:i:s" }}</span><span class="sub mono" title="SHA-256 данных">{{ e.sha256|slice:":24" }}…</span></td></tr>
-    {% empty %}<tr><td class="empty">Нет: проверка не применима или данные не собраны.</td></tr>{% endfor %}</tbody></table></section>
-</div>
+<div class="head"><div><div class="crumbs"><a href="{% url 'checks:run_list' project.id %}">Аудит</a> / <a href="{% url 'checks:run_detail' project.id r.audit_run_id %}">{{ r.audit_run.created_at|full }}</a></div>
+  <h1><span class="mono">{{ r.check_id }}</span> · <span class="mono">{{ r.node.name }}</span></h1></div></div>
+<div class="form">{% include "checks/_result.html" %}</div>
 {% endblock %}
