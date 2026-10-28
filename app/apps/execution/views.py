@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from apps.core.rbac import Perm, perm_required
+from apps.core.rbac import Perm, has_perm, perm_required
 
 from . import services
 from .models import Job, JobType
@@ -11,7 +11,8 @@ from .models import Job, JobType
 @perm_required(Perm.VIEW_PROJECT)
 def job_list(request, project_id):
     jobs = Job.objects.filter(project=request.project).select_related("node", "requested_by")[:100]
-    return render(request, "execution/job_list.html", {"project": request.project, "jobs": jobs})
+    can_run = has_perm(request.user, Perm.RUN_JOBS, request.project) and not request.project.is_archived
+    return render(request, "execution/job_list.html", {"project": request.project, "jobs": jobs, "can_run": can_run})
 
 
 @perm_required(Perm.VIEW_PROJECT)

@@ -20,10 +20,10 @@
 <h2>2. Исходное состояние</h2>
 <p>Аудит {{ d.before.at|isodt }}: соответствует {{ before_totals.PASS|default:0 }}, нарушений {{ before_totals.FAIL|default:0 }}, нет данных {{ before_totals.UNKNOWN|default:0 }}, ошибок {{ before_totals.ERROR|default:0 }}.</p>
 <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th class="first">Узел</th><th>Проверка</th><th>Важность</th><th>Статус</th><th class="last">Объяснение</th></tr></thead><tbody>
-{% for r in d.before.results %}{% if r.status != "NOT_APPLICABLE" %}<tr><td class="first mono">{{ r.node }}</td><td><span class="id">{{ r.check_id }}</span> {{ r.title }}</td><td>{{ r.severity }}</td><td class="nowrap"><span class="st {{ r.status|st }}">{{ r.status|status_ru }}</span></td><td class="last small">{{ r.explanation }}</td></tr>{% endif %}{% endfor %}</tbody></table></div></div>
+{% for r in d.before.results %}{% if r.status != "NOT_APPLICABLE" %}<tr><td class="first mono">{{ r.node }}</td><td><span class="id">{{ r.check_id }}</span> {{ r.title }}</td><td>{{ r.severity|severity_ru }}</td><td class="nowrap"><span class="st {{ r.status|st }}">{{ r.status|status_ru }}</span></td><td class="last small">{{ r.explanation }}</td></tr>{% endif %}{% endfor %}</tbody></table></div></div>
 
 <h2>3. Выполненные изменения</h2>
-{% for p in d.changes %}<h3>План {{ p.plan_id|slice:":8" }}: {{ p.state|status_ru }}, риск {{ p.risk }}</h3>
+{% for p in d.changes %}<h3>План {{ p.plan_id|slice:":8" }}: {{ p.state|status_ru }}, риск {{ p.risk|risk_ru }}</h3>
 <p class="small">Утвердил {{ p.approved_by|default:"–" }} {{ p.approved_at|isodt }}{% if p.finished_at %}, завершён {{ p.finished_at|isodt }}{% endif %}.</p>
 <div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th class="first">Узел</th><th>Шаг</th><th>Исправляет</th><th>Откат</th><th class="last">Итог</th></tr></thead><tbody>
 {% for i in p.items %}<tr><td class="first mono">{{ i.node }}</td><td>{{ i.description }}<span class="sub mono">{{ i.action }}</span></td><td class="mono small">{{ i.checks|join:" " }}</td><td>{% if i.reversible %}автоматический{% else %}необратимо{% endif %}</td>
@@ -58,7 +58,7 @@
 
 <h2>6. Остаточные риски</h2>
 {% if d.residual %}<div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th class="first">Узел</th><th>Проверка</th><th>Важность</th><th>Статус</th><th class="last">Почему не исправлено и что сделать</th></tr></thead><tbody>
-{% for r in d.residual %}<tr><td class="first mono">{{ r.node }}</td><td><span class="id">{{ r.check_id }}</span> {{ r.title }}</td><td>{{ r.severity }}</td><td class="nowrap"><span class="st {{ r.status|st }}">{{ r.status|status_ru }}</span></td><td class="last small">{{ r.why_not_fixed|default:r.explanation }}</td></tr>{% endfor %}</tbody></table></div></div>
+{% for r in d.residual %}<tr><td class="first mono">{{ r.node }}</td><td><span class="id">{{ r.check_id }}</span> {{ r.title }}</td><td>{{ r.severity|severity_ru }}</td><td class="nowrap"><span class="st {{ r.status|st }}">{{ r.status|status_ru }}</span></td><td class="last small">{{ r.why_not_fixed|default:r.explanation }}</td></tr>{% endfor %}</tbody></table></div></div>
 {% else %}<p>По результатам аудита «после» несоответствий каталогу проверок нет.</p>{% endif %}
 
 <h2>7. Ограничения выводов</h2>

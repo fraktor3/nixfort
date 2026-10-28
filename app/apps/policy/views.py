@@ -11,6 +11,18 @@ from .forms import FlowForm
 from .models import Flow, FlowPolicyVersion
 
 
+def _last_proof(project):
+    """The most recent real probes of the policy (a manual check or the post-change probes of a plan)."""
+    last = (ConnectivityTest.objects.filter(project=project, phase__in=["CHECK", "POST"])
+            .order_by("-created_at").first())  # fmt: skip
+    if last is None:
+        return None
+    rows = list(ConnectivityTest.objects.filter(project=project, phase=last.phase, job=last.job,
+                                                plan_item=last.plan_item).order_by("port"))  # fmt: skip
+    return {"at": last.created_at, "phase": last.get_phase_display(), "rows": rows,
+            "ok": sum(1 for r in rows if r.verdict == "OK"), "total": len(rows)}  # fmt: skip
+
+
 @perm_required(Perm.VIEW_PROJECT)
 def policy_overview(request, project_id):
     project = request.project
@@ -26,6 +38,8 @@ def policy_overview(request, project_id):
         "shown": shown,
         "flows": shown.flows.select_related("dst_node", "probe_from") if shown else [],
         "conflicts": services.find_conflicts(shown) if shown else [],
+        "proof": _last_proof(project),
+        "can_run": has_perm(request.user, Perm.RUN_JOBS, project) and not project.is_archived,
         "can_edit": has_perm(request.user, Perm.EDIT_PROJECT, project) and not project.is_archived,
         "can_activate": has_perm(request.user, Perm.ACTIVATE_POLICY, project) and not project.is_archived,
     }

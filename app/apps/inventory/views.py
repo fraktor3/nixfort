@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.core import audit
@@ -67,6 +68,7 @@ def project_detail(request, project_id):
     latest, first = (runs[0], runs[-1]) if runs else (None, None)
     steps = overview.cycle(project, nodes, runs, plans, protection, summary, report)
     can_run = has_perm(request.user, Perm.RUN_JOBS, project) and not project.is_archived
+    matrix = overview.defence_matrix(project, nodes, latest, first)
     ctx = {
         "project": project,
         "nodes": nodes,
@@ -75,15 +77,16 @@ def project_detail(request, project_id):
         "jobs": jobs,
         "steps": steps,
         "action": overview.next_action(project, steps, nodes, runs, plans) if can_run else None,
-        "matrix": overview.defence_matrix(project, nodes, latest, first),
+        "matrix": matrix,
         "latest_run": latest,
         "first_run": first if first and latest and first.id != latest.id else None,
         "finding": overview.finding(latest, nodes),
-        "scheme": overview.segment_svg(project, nodes),
+        "scheme": overview.segment_svg(project, nodes, overview.node_states(matrix)),
         "protection": sorted(protection, key=lambda t: t.scenario),
         "can_edit": has_perm(request.user, Perm.EDIT_PROJECT, project) and not project.is_archived,
         "can_run": can_run,
         "is_admin": has_perm(request.user, Perm.APPROVE_PLAN, project),
+        "archive_url": reverse("inventory:project_archive", args=[project.id]),
     }
     return render(request, "inventory/project_detail.html", ctx)
 

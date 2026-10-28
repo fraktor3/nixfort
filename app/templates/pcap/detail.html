@@ -23,7 +23,7 @@
   <section class="panel"><div class="panel-body">{{ tl.packets|safe }}</div></section>
   <section class="panel"><div class="panel-body">{{ tl.bytes|safe }}</div></section>
 </div>{% endif %}
-<div class="grid g-1-1 section-gap">
+<div class="grid g-1-1 stretch section-gap">
   <section class="panel"><div class="panel-head"><h2>Протоколы</h2></div>
     <table class="table"><thead><tr><th class="first">Протокол</th><th class="num">Пакетов</th><th class="num last">Байт</th></tr></thead><tbody>
     {% for p in d.protocols %}<tr><td class="first">{{ p.protocol }}</td><td class="num">{{ p.frames }}</td><td class="num last">{{ p.bytes }}</td></tr>{% endfor %}</tbody></table></section>

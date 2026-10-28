@@ -1,0 +1,4 @@
+<details class="confirm"><summary class="btn {{ size|default:'sm' }} danger">{{ label }}</summary>
+  <div class="confirm-box" role="alertdialog" aria-label="{{ question }}"><p><b>{{ question }}</b> {{ consequence }}</p>
+    <form method="post" action="{{ action_url }}" class="row-flex">{% csrf_token %}<button class="btn sm danger solid">{{ confirm }}</button><span class="small">Чтобы отменить, нажмите кнопку «{{ label }}» ещё раз.</span></form></div>
+</details>

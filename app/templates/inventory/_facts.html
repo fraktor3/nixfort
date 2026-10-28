@@ -12,7 +12,3 @@
 </table></div>{% endif %}{% endwith %}
 {% if facts.ssh.result.effective %}<div class="panel-body"><span class="label-text">SSH: действующие значения (sshd -T)</span>
   <div class="mono small">{% for k, v in facts.ssh.result.effective|pairs %}{{ k }} {{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</div></div>{% endif %}
-<table class="table">
-  <thead><tr><th class="first">Источник (действие агента)</th><th class="last">Ответ</th></tr></thead>
-  <tbody>{% for key, f in facts|pairs %}<tr><td class="first mono">{{ key }}</td><td class="last"><span class="st {% if f.state == 'OK' %}s-pass{% else %}s-unknown{% endif %}">{{ f.state }}</span> <span class="mono muted">{{ f.error_code|default:"" }}</span></td></tr>{% endfor %}</tbody>
-</table>

@@ -10,7 +10,7 @@
 <div class="figures">
   <div><div class="label">Шагов</div><div class="value">{{ items|length }}</div></div>
   <div><div class="label">Узлов</div><div class="value">{{ node_count }}</div></div>
-  <div><div class="label">Риск плана</div><div class="value">{{ plan.risk }}</div></div>
+  <div><div class="label">Риск плана</div><div class="value">{{ plan.risk|risk_ru }}</div></div>
   <div><div class="label">Не исправляется автоматически</div><div class="value">{{ plan.not_covered|length }}</div></div>
 </div>
 
@@ -28,7 +28,7 @@
     <thead><tr><th class="first">Узел</th><th>Действие</th><th>Исправляет</th><th>Риск</th><th>Откат</th><th class="last">Итог</th></tr></thead>
     <tbody>{% for i in items %}<tr><td class="first mono">{{ i.node.name }}</td>
       <td>{{ i.description }}<span class="sub mono">{{ i.action_id }}</span></td>
-      <td class="mono small">{{ i.check_ids|join:" " }}</td><td>{{ i.risk }}</td>
+      <td class="mono small">{{ i.check_ids|join:" " }}</td><td>{{ i.risk|risk_ru }}</td>
       <td>{% if i.reversible %}автоматический{% else %}<span class="st s-unknown">необратимо</span>{% endif %}</td>
       <td class="last"><span class="st {{ i.state|st }}">{{ i.get_state_display }}</span>{% if i.result.reason %}<span class="sub">{{ i.result.reason }}</span>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="6" class="empty">Шагов нет.</td></tr>{% endfor %}</tbody>

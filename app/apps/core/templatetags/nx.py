@@ -155,3 +155,19 @@ def status_ru(value) -> str:
 def pairs(mapping) -> list:
     """dict -> [(key, value)]; avoids Django resolving `.items` to a key named «items»."""
     return list(mapping.items()) if isinstance(mapping, dict) else []
+
+
+SEVERITY_RU = {"CRITICAL": "критическая", "HIGH": "высокая", "MEDIUM": "средняя", "LOW": "низкая"}
+
+
+@register.filter
+def severity_ru(value) -> str:
+    return SEVERITY_RU.get(str(value), str(value or "–"))
+
+
+RISK_RU = {"HIGH": "высокий", "MEDIUM": "средний", "LOW": "низкий"}
+
+
+@register.filter
+def risk_ru(value) -> str:
+    return RISK_RU.get(str(value), str(value or "–"))

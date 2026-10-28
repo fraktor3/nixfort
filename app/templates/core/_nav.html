@@ -1,13 +1,12 @@
 <a class="brand" href="{% url 'core:dashboard' %}">{% include "core/_mark.html" %}NIXFORT</a>
 {% if nav_project %}
-<div class="scope"><div class="label">Проект</div>
-  <a class="name" href="{% url 'inventory:project_detail' nav_project.id %}" title="{{ nav_project.name }}">{{ nav_project.name }}</a>
-  <a class="switch" href="{% url 'inventory:project_list' %}">Все проекты</a></div>
+<a class="scope" href="{% url 'inventory:project_detail' nav_project.id %}" title="{{ nav_project.name }}"><span class="label">Проект</span><span class="name">{{ nav_project.name }}</span></a>
+<a class="scope-switch" href="{% url 'inventory:project_list' %}">Все проекты</a>
 {% for g in nav_groups %}{% if g.title %}<div class="nav-group">{{ g.title }}</div>{% endif %}
-<ul class="nav">{% for i in g.items %}<li><a href="{% url i.url nav_project.id %}"{% if i.current %} aria-current="page"{% endif %}>{{ i.label }}{% if i.count %}<span class="count" title="Ждут утверждения">{{ i.count }} на утверждении</span>{% endif %}</a></li>{% endfor %}</ul>
+<ul class="nav{% if not g.title %} nav-top{% endif %}">{% for i in g.items %}<li><a href="{% url i.url nav_project.id %}"{% if i.current %} aria-current="page"{% endif %}><span>{{ i.label }}</span>{% if i.count %}<span class="count" title="Планы ждут утверждения">{{ i.count }} ждут</span>{% elif i.live %}<span class="live" title="Задания в очереди или выполняются">{{ i.live }}</span>{% endif %}</a></li>{% endfor %}</ul>
 {% endfor %}
 {% else %}
-<ul class="nav mt-16">
+<ul class="nav nav-top">
   <li><a href="{% url 'core:dashboard' %}"{% if nav_here == "core:dashboard" %} aria-current="page"{% endif %}>Обзор</a></li>
   <li><a href="{% url 'inventory:project_list' %}"{% if nav_here == "inventory:project_list" or nav_here == "inventory:project_create" %} aria-current="page"{% endif %}>Проекты</a></li>
 </ul>
@@ -19,5 +18,5 @@
   </ul>
   <div class="user-row"><div class="who"><b>{{ user.username }}</b><span>{{ nav_role|default:"роль не назначена" }}</span></div>
     <form method="post" action="{% url 'accounts:logout' %}" class="inline">{% csrf_token %}<button class="btn sm">Выйти</button></form></div>
-  <div class="legal"><a href="{% url 'core:terms' %}">Условия использования</a><a href="{% url 'core:privacy' %}">Конфиденциальность</a><span class="muted">v{{ nixfort_version }}</span></div>
+  <div class="legal"><a href="{% url 'core:terms' %}">Условия использования</a><a href="{% url 'core:privacy' %}">Конфиденциальность</a></div>
 </div>

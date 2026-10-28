@@ -68,14 +68,18 @@ def nav(request):
     here = _current(request)
     groups = []
     if project is not None:
+        from apps.execution.models import Job
+
         drafts = project.plans.filter(state="DRAFT").count()
+        running = Job.objects.filter(project=project, state__in=["QUEUED", "RUNNING", "ROLLING_BACK"]).count()
         for title, items in PROJECT_NAV:
             rows = []
             for label, name, match in items:
                 cur = any(here == m or here.startswith(m + ":") or (":" not in m and here.split(":")[0] == m)
                           for m in match)  # fmt: skip
                 count = drafts if name == "remediation:plan_list" and drafts else None
-                rows.append({"label": label, "url": name, "current": cur, "count": count})
+                live = f"{running} в работе" if name == "execution:job_list" and running else None
+                rows.append({"label": label, "url": name, "current": cur, "count": count, "live": live})
             groups.append({"title": title, "items": rows})
     roles = roles_of(user, project)
     role = next((r.label for r in ROLE_ORDER if r.value in roles), "")

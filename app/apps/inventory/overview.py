@@ -189,48 +189,86 @@ def _net_name(project, cidr: str, nodes) -> str:
     return "сеть"
 
 
-def segment_svg(project, nodes) -> str:
-    """Lanes = the project's subnets; columns = the controller and the nodes; a dot where a host has an address."""
-    cols = [("NIXFORT", [project.controller_ip], "controller")]
-    cols += [(n.name, [n.mgmt_ip, *(n.data_ips or [])], "gateway" if n.has_role("gateway") else "") for n in nodes]
+def node_states(matrix) -> dict:
+    """Node name -> "pass" | "fail" | "unknown" from the defence matrix (the worst applicable layer wins)."""
+    out = {}
+    if not matrix:
+        return out
+    for j, n in enumerate(matrix["nodes"]):
+        cells = [row["cells"][j]["now"] for row in matrix["rows"] if row["cells"][j]["now"]]
+        worst = max((c["worst"] for c in cells), key=lambda w: RANK.get(w, 0), default=None)
+        out[n.name] = {"PASS": "pass", "FAIL": "fail"}.get(worst, "unknown") if worst else "na"
+    return out
+
+
+STATE_FILL = {"pass": "#2a7343", "fail": "#b8262c", "unknown": "#9a6411", "na": "none"}
+STATE_WORD = {
+    "pass": "все уровни в норме",
+    "fail": "есть нарушения",
+    "unknown": "нет данных",
+    "na": "проверки не применяются",
+}
+
+
+def segment_svg(project, nodes, states: dict | None = None) -> str:
+    """The segment as the engineer draws it: one band per subnet, one column per host (the controller first),
+    a square where the host has an address in that subnet. The square on each host card is its audit state."""
+    states = states or {}
+    cols = [("NIXFORT", "контроллер", [project.controller_ip], None)]
+    for n in nodes:
+        role = (
+            "шлюз"
+            if n.has_role("gateway")
+            else "сервер"
+            if n.has_role("server")
+            else "клиент"
+            if n.has_role("test_client")
+            else ""
+        )
+        cols.append((n.name, role, [n.mgmt_ip, *(n.data_ips or [])], states.get(n.name, "na")))
     lanes = list(project.cidrs or [])
     if not lanes:
         return ""
-    left, top, lane_h, width = 118, 52, 64, 344
-    col_w = (width - left - 8) / max(len(cols), 1)
-    height = top + lane_h * len(lanes) + 6
-    out = [f'<svg class="chart scheme" viewBox="0 0 {width} {height}" role="img" aria-label="Схема сегмента: подсети и узлы" '
-           f'xmlns="http://www.w3.org/2000/svg" font-family="Plex, sans-serif">']  # fmt: skip
+    width, left, card_h, top, lane_h, band = 520, 132, 40, 64, 56, 30
+    col_w = (width - left) / max(len(cols), 1)
+    height = top + lane_h * len(lanes) - (lane_h - band) // 2 + 2
+    out = [f'<svg class="chart scheme" viewBox="0 0 {width} {height}" role="img" '
+           f'aria-label="Схема сегмента: подсети и узлы" xmlns="http://www.w3.org/2000/svg" font-family="Plex, sans-serif">']  # fmt: skip
     for i, cidr in enumerate(lanes):
-        y = top + lane_h * i + lane_h / 2
-        out.append(f'<line x1="{left - 6}" y1="{y}" x2="{width - 2}" y2="{y}" stroke="#c4cad0" stroke-width="1"/>')
+        y = top + lane_h * i
+        out.append(f'<rect x="0" y="{y}" width="{width}" height="{band}" fill="#eef1f4"/>')
         out.append(
-            f'<text x="0" y="{y - 3}" font-size="12" fill="#121518">{escape(_net_name(project, cidr, nodes))}</text>'
+            f'<text x="8" y="{y + 13}" font-size="12" fill="#121518">{escape(_net_name(project, cidr, nodes))}</text>'
         )
-        out.append(f'<text x="0" y="{y + 12}" font-size="11" fill="#545b62" font-family="Plex Mono, monospace">'
+        out.append(f'<text x="8" y="{y + 25}" font-size="11" fill="#535a61" font-family="Plex Mono, monospace">'
                    f'{escape(cidr)}</text>')  # fmt: skip
-    for j, (name, ips, kind) in enumerate(cols):
-        x = left + col_w * j + col_w / 2
+    for j, (name, role, ips, state) in enumerate(cols):
+        cx = left + col_w * j + col_w / 2
+        cw = min(col_w - 8, 92)
         hits = []
         for i, cidr in enumerate(lanes):
             net = ipaddress.ip_network(cidr, strict=False)
             ip = next((a for a in ips if a and ipaddress.ip_address(a) in net), None)
             if ip:
-                hits.append((top + lane_h * i + lane_h / 2, ip))
-        label_fill = "#121518"
-        short = name.replace("nx-", "") if name.startswith("nx-") else name
-        out.append(f'<text x="{x}" y="16" font-size="12" text-anchor="middle" fill="{label_fill}" '
-                   f'font-family="Plex Mono, monospace">{escape(short)}</text>')  # fmt: skip
-        role = {"gateway": "шлюз", "controller": "контроллер"}.get(kind)
-        if role:
-            out.append(f'<text x="{x}" y="31" font-size="11" text-anchor="middle" fill="#545b62">{role}</text>')
+                hits.append((top + lane_h * i + band / 2, ip))
         if hits:
-            y0, y1 = top - 6, hits[-1][0]
-            out.append(f'<line x1="{x}" y1="{y0}" x2="{x}" y2="{y1}" stroke="#121518" '
-                       f'stroke-width="{2 if kind == "gateway" else 1}"/>')  # fmt: skip
+            out.append(f'<line x1="{cx}" y1="{card_h}" x2="{cx}" y2="{hits[-1][0]}" stroke="#121518" '
+                       f'stroke-width="{2 if role == "шлюз" else 1.2}"/>')  # fmt: skip
+        out.append(
+            f'<rect x="{cx - cw / 2}" y="0.5" width="{cw}" height="{card_h - 1}" fill="#fbfcfc" stroke="#121518"/>'
+        )
+        short = name[3:] if name.startswith("nx-") else name
+        out.append(f'<text x="{cx}" y="17" font-size="12" text-anchor="middle" fill="#121518" '
+                   f'font-family="Plex Mono, monospace">{escape(short)}</text>')  # fmt: skip
+        out.append(f'<text x="{cx}" y="31" font-size="11" text-anchor="middle" fill="#535a61">{escape(role)}</text>')
+        if state:
+            fill = STATE_FILL[state]
+            stroke = ' stroke="#8d949b"' if fill == "none" else ""
+            out.append(f'<rect x="{cx - cw / 2 + 5}" y="6" width="7" height="7" fill="{fill}"{stroke}>'
+                       f'<title>{escape(name)}: {STATE_WORD[state]}</title></rect>')  # fmt: skip
         for y, ip in hits:
-            out.append(f'<rect x="{x - 4}" y="{y - 4}" width="8" height="8" fill="#121518"/>')
-            out.append(f'<text x="{x + 8}" y="{y - 7}" font-size="11" fill="#545b62" '
+            out.append(f'<rect x="{cx - 4}" y="{y - 4}" width="8" height="8" fill="#121518"/>')
+            out.append(f'<text x="{cx + 8}" y="{y + 4}" font-size="11" fill="#121518" '
                        f'font-family="Plex Mono, monospace">.{escape(ip.rsplit(".", 1)[-1])}</text>')  # fmt: skip
     out.append("</svg>")
     return "".join(out)

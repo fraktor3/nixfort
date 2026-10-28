@@ -4,7 +4,7 @@
 <div class="page-head">
   <div><div class="crumbs"><a href="{% url 'checks:run_list' project.id %}">Аудит</a> / <a href="{% url 'checks:run_detail' project.id r.audit_run_id %}">{{ r.audit_run.created_at|date:"d.m.Y H:i" }}</a></div>
     <div class="title-line"><h1>{{ check.title }}</h1><span class="st big {{ r.status|st }}">{{ r.get_status_display }}</span></div>
-    <div class="sub"><span class="mono">{{ r.check_id }}</span> · узел <span class="mono">{{ r.node.name }}</span> · важность {{ check.severity }}</div></div>
+    <div class="sub"><span class="mono">{{ r.check_id }}</span> · узел <span class="mono">{{ r.node.name }}</span> · важность {{ check.severity|severity_ru }}</div></div>
 </div>
 <div class="grid g-2-1">
   <section class="panel"><div class="panel-head"><h2>Вывод</h2></div>

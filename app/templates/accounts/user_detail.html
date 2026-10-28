@@ -4,7 +4,8 @@
 <div class="page-head"><div><div class="crumbs"><a href="{% url 'accounts:user_list' %}">Пользователи</a></div>
   <div class="title-line"><h1>{{ u.username }}</h1><span class="st {% if u.is_active %}s-pass{% else %}s-off{% endif %}">{{ u.is_active|yesno:"включена,отключена" }}</span></div>
   <div class="sub">Последний вход {{ u.last_login|date:"d.m.Y H:i"|default:"не выполнялся" }}</div></div>
-  <div class="actions"><form method="post" action="{% url 'accounts:user_toggle_active' u.pk %}">{% csrf_token %}<button class="btn {% if u.is_active %}danger{% endif %}">{% if u.is_active %}Отключить учётную запись{% else %}Включить учётную запись{% endif %}</button></form></div></div>
+  <div class="actions">{% url 'accounts:user_toggle_active' u.pk as toggle_url %}{% if u.is_active %}{% include "core/_confirm.html" with action_url=toggle_url size="md" label="Отключить учётную запись" question="Отключить учётную запись?" consequence="Пользователь не сможет войти; его действия в журнале сохранятся. Включить запись можно обратно." confirm="Да, отключить" %}
+    {% else %}<form method="post" action="{{ toggle_url }}">{% csrf_token %}<button class="btn">Включить учётную запись</button></form>{% endif %}</div></div>
 <div class="grid g-1-1">
   <section class="panel"><div class="panel-head"><h2>Роли</h2></div>
     <table class="table"><tbody>{% for r in roles %}<tr><td class="first">{{ r.get_role_display }}<span class="sub">{% if r.project %}в проекте {{ r.project.name }}{% else %}во всех проектах{% endif %}</span></td>

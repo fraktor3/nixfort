@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}Задания · {{ project.name }}{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Задания</h1><div class="sub">Каждое действие с узлами выполняется заданием в очереди. «Состояние неизвестно» означает, что результат не подтверждён: такой исход никогда не считается успехом.</div></div></div>
+<div class="page-head"><div><h1>Задания</h1><div class="sub">Каждое действие с узлами выполняется заданием в очереди. «Состояние неизвестно» означает, что результат не подтверждён: такой исход никогда не считается успехом.</div></div>
+  <div class="actions">{% if can_run %}<form method="post" action="{% url 'execution:noop_create' project.id %}">{% csrf_token %}<button class="btn" title="Проверяет, что очередь заданий и обработчики работают">Тестовое задание</button></form>{% endif %}</div></div>
 <section class="panel"><div class="table-wrap"><table class="table">
   <thead><tr><th class="first">Задание</th><th>Узел</th><th>Кто запустил</th><th>Состояние</th><th>Код ошибки</th><th class="num last">Создано</th></tr></thead>
   <tbody>{% for j in jobs %}<tr><td class="first"><a href="{% url 'execution:job_detail' project.id j.id %}">{{ j|job_label }}</a>{% if j.phase and not j.is_terminal %}<span class="sub">{{ j.phase }}</span>{% endif %}</td>
