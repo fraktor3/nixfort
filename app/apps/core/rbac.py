@@ -52,19 +52,30 @@ GLOBAL_ONLY = frozenset({Perm.CREATE_PROJECT, Perm.MANAGE_USERS, Perm.VIEW_GLOBA
 
 
 def roles_of(user, project=None) -> set[str]:
+    """Roles of the user globally (project=None) or in a project (global roles included).
+
+    Within one web request the answer is memoised on the request's user (see RequestRolesCacheMiddleware):
+    a page asks for permissions many times, roles cannot change while it renders. Outside a request
+    (workers, tests) every call reads the database."""
     if not getattr(user, "is_authenticated", False) or not user.is_active:
         return set()
+    project_id = getattr(project, "id", project)
+    cache = getattr(user, "_request_roles", None)
+    if cache is not None and project_id in cache:
+        return set(cache[project_id])
     from apps.accounts.models import RoleAssignment
 
     qs = RoleAssignment.objects.filter(user=user)
-    project_id = getattr(project, "id", project)
     if project_id is None:
         qs = qs.filter(project__isnull=True)
     else:
         from django.db.models import Q
 
         qs = qs.filter(Q(project__isnull=True) | Q(project_id=project_id))
-    return set(qs.values_list("role", flat=True))
+    roles = set(qs.values_list("role", flat=True))
+    if cache is not None:
+        cache[project_id] = frozenset(roles)
+    return roles
 
 
 def has_perm(user, perm: Perm, project=None) -> bool:

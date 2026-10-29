@@ -1,3 +1,5 @@
+"""Reports: an immutable data snapshot with its SHA-256."""
+
 from django.conf import settings
 from django.db import models
 

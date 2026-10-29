@@ -8,20 +8,10 @@ from datetime import timedelta
 from django.db.models import Count, Max
 from django.utils import timezone
 
-from apps.execution.agent_client import client_for
+from apps.execution.agent_client import call_node, client_for
 from apps.execution.models import JobState
-from apps.execution.transport import TransportError
 
 from .models import SecuritySummary
-
-
-def _call(client_factory, node, action, params=None):
-    from apps.execution.agent_client import AgentResponse
-
-    try:
-        return client_factory(node).call(action, params or {}, deadline_s=60)
-    except TransportError as exc:
-        return AgentResponse(action=action, state="TRANSPORT_ERROR", error_code=exc.code)
 
 
 def collect(job, log, client_factory=None) -> tuple[str, dict]:
@@ -36,8 +26,8 @@ def collect(job, log, client_factory=None) -> tuple[str, dict]:
         if node.confirmed_hostkey is None:
             rows.append({**row, "reachable": False, "note": "ключ узла не подтверждён"})
             continue
-        auth = _call(client_factory, node, "system.read_auth_failures.v1", {"hours": window})
-        f2b = _call(client_factory, node, "fail2ban.read_status.v1")
+        auth = call_node(client_factory, node, "system.read_auth_failures.v1", {"hours": window})
+        f2b = call_node(client_factory, node, "fail2ban.read_status.v1")
         if not auth.ok and not f2b.ok:
             rows.append({**row, "reachable": False, "note": f"узел недоступен ({auth.error_code or f2b.error_code})"})
             continue

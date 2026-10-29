@@ -1,3 +1,5 @@
+"""Sign-in, sign-out, failed sign-in and lockout go to the audit journal."""
+
 from axes.signals import user_locked_out
 from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
 from django.dispatch import receiver

@@ -1,3 +1,5 @@
+"""URLs of the security-log page."""
+
 from django.urls import path
 
 from . import views

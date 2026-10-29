@@ -1,3 +1,5 @@
+"""Traffic records: a capture on a node or an uploaded file, with the analysis result."""
+
 from django.conf import settings
 from django.db import models
 

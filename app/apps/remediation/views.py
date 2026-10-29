@@ -1,5 +1,8 @@
+"""Pages: plans, one plan (steps, probes, before and after); create, approve, reject."""
+
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -17,7 +20,8 @@ from .models import PlanState, RemediationPlan
 
 @perm_required(Perm.VIEW_PROJECT)
 def plan_list(request, project_id):
-    plans = RemediationPlan.objects.filter(project=request.project).select_related("created_by", "approved_by")[:50]
+    plans = (RemediationPlan.objects.filter(project=request.project)
+             .select_related("created_by", "approved_by", "audit_run").annotate(n_items=Count("items"))[:50])  # fmt: skip
     return render(request, "remediation/plan_list.html", {"project": request.project, "plans": plans})
 
 

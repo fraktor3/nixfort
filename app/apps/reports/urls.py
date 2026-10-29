@@ -1,3 +1,5 @@
+"""URLs of the report pages and downloads."""
+
 from django.urls import path
 
 from . import views

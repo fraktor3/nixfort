@@ -1,3 +1,5 @@
+"""Job handler that executes an approved plan (queue «mutation»)."""
+
 from apps.execution import services
 from apps.execution.models import Job, JobType
 from apps.execution.registry import register

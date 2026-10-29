@@ -1,3 +1,5 @@
+"""URLs of projects, nodes, host keys, inventory and port scans."""
+
 from django.urls import path
 
 from . import views

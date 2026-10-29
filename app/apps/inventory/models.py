@@ -1,3 +1,5 @@
+"""Project (segment), Node, confirmed SSH host key, inventory snapshots, port scans."""
+
 from __future__ import annotations
 
 from django.conf import settings

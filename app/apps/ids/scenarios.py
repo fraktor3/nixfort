@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from django.utils import timezone
 
-from apps.execution.agent_client import client_for
+from apps.execution.agent_client import call_node, client_for
 from apps.execution.transport import TransportError
 from apps.inventory.models import Node
 from apps.pcap import handlers as pcap_handlers
@@ -46,20 +46,11 @@ def _node(project, role: str, need_data_ip: bool = False) -> Node:
     raise ScenarioError(f"нет узла с ролью «{role}» и подтверждённым ключом")
 
 
-def _call(client_factory, node, action, params=None, deadline_s=60):
-    try:
-        return client_factory(node).call(action, params or {}, deadline_s=deadline_s)
-    except TransportError as exc:
-        from apps.execution.agent_client import AgentResponse
-
-        return AgentResponse(action=action, state="TRANSPORT_ERROR", error_code=exc.code)
-
-
 def fetch_events(project, sensor: Node, job, since: datetime | None, client_factory) -> tuple[bool, str, list]:
     """Read new alerts/anomalies from the sensor and store them. Returns (log_available, reason, events)."""
     params = {"since_ts": since.isoformat(timespec="seconds") if since else None, "limit": 500,
               "types": ["alert", "anomaly"]}  # fmt: skip
-    r = _call(client_factory, sensor, "suricata.read_events.v1", params, deadline_s=60)
+    r = call_node(client_factory, sensor, "suricata.read_events.v1", params, deadline_s=60)
     if not r.ok:
         return False, f"датчик не ответил ({r.state} {r.error_code or ''})".strip(), []
     if not r.result.get("eve_available"):
@@ -157,7 +148,7 @@ def ids_marker(job, log, client_factory, sleep) -> ProtectionTest:
     f = flows[0]
     since = timezone.now() - timedelta(seconds=5)
     log(f"{client.name} → {f.dst_ip}:{f.port}: отправка тестовой строки NIXFORT-IDS-TEST-7f3a", "INFO")
-    r = _call(client_factory, client, "net.send_ids_test.v1", {"ip": f.dst_ip, "port": f.port})
+    r = call_node(client_factory, client, "net.send_ids_test.v1", {"ip": f.dst_ip, "port": f.port})
     sent = r.ok and r.result.get("sent")
     what = f"событие sid {TEST_SID} от {', '.join(client.data_ips)}"
     if not sent:
@@ -185,7 +176,7 @@ def port_scan(job, log, client_factory, sleep) -> ProtectionTest:
     since = timezone.now() - timedelta(seconds=5)
     log(f"{client.name} → {ip}: сканирование {len(SCAN_PORTS)} TCP-портов", "INFO")
     targets = [{"ip": ip, "port": p} for p in SCAN_PORTS]
-    r = _call(client_factory, client, "net.tcp_probe.v1", {"targets": targets, "timeout_ms": 300}, deadline_s=90)
+    r = call_node(client_factory, client, "net.tcp_probe.v1", {"targets": targets, "timeout_ms": 300}, deadline_s=90)
     if not r.ok:
         raise ScenarioError(f"сканирование не выполнено ({r.state} {r.error_code})")
     open_ports = sorted(x["port"] for x in r.result.get("results") or [] if x.get("result") == "OPEN")
@@ -224,7 +215,7 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
     # A. through the gateway (users -> servers network)
     since = timezone.now() - timedelta(seconds=5)
     log(f"A. {client.name} → {data_ip}:22 через шлюз: 6 попыток входа под несуществующими пользователями", "INFO")
-    a = _call(client_factory, client, "net.ssh_login_attempts.v1", {"ip": data_ip, "port": 22, "count": 6},
+    a = call_node(client_factory, client, "net.ssh_login_attempts.v1", {"ip": data_ip, "port": 22, "count": 6},
               deadline_s=90)  # fmt: skip
     if not a.ok:
         raise ScenarioError(f"попытки входа не выполнены ({a.state} {a.error_code})")
@@ -246,12 +237,12 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
 
     # B. inside the management network (no gateway on the path): the server defends itself — its host
     # firewall (T-023) if SSH is limited to management sources, otherwise Fail2ban.
-    st = _call(client_factory, server, "fail2ban.read_status.v1")
+    st = call_node(client_factory, server, "fail2ban.read_status.v1")
     jail = (st.result or {}).get("sshd") or {} if st.ok else {}
     host_fw = _host_firewall(client_factory, server)
     if host_fw is not None and not _covered(client.mgmt_ip, host_fw):
         log(f"B. {client.name} → {server.mgmt_ip}:22 напрямую (сеть управления): 7 попыток входа", "INFO")
-        b = _call(client_factory, client, "net.ssh_login_attempts.v1",
+        b = call_node(client_factory, client, "net.ssh_login_attempts.v1",
                   {"ip": server.mgmt_ip, "port": 22, "count": 7}, deadline_s=120)  # fmt: skip
         sb = (b.result or {}).get("summary") or {} if b.ok else {}
         details["direct"] = sb
@@ -275,12 +266,12 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
         return _save(job, ProtectionTest.Scenario.SSH_BRUTEFORCE, layers, details)
     if st.ok and jail.get("enabled"):
         log(f"B. {client.name} → {server.mgmt_ip}:22 напрямую (сеть управления): 7 попыток входа", "INFO")
-        b = _call(client_factory, client, "net.ssh_login_attempts.v1",
+        b = call_node(client_factory, client, "net.ssh_login_attempts.v1",
                   {"ip": server.mgmt_ip, "port": 22, "count": 7}, deadline_s=120)  # fmt: skip
         sb = (b.result or {}).get("summary") or {} if b.ok else {}
         details["direct"] = sb
         sleep(3)
-        after = _call(client_factory, server, "fail2ban.read_status.v1")
+        after = call_node(client_factory, server, "fail2ban.read_status.v1")
         banned = (((after.result or {}).get("sshd") or {}).get("banned_ips") or []) if after.ok else []
         ok = client.mgmt_ip in banned
         layers.append({
@@ -300,7 +291,7 @@ def ssh_bruteforce(job, log, client_factory, sleep) -> ProtectionTest:
 def _host_firewall(client_factory, server: Node) -> list[str] | None:
     """SSH sources allowed by the server's host firewall (input chain with policy drop), or None if there is
     no such firewall or it could not be read."""
-    r = _call(client_factory, server, "nft.inspect.v1")
+    r = call_node(client_factory, server, "nft.inspect.v1")
     if not r.ok or ((r.result.get("nixfort_chains") or {}).get("input") or {}).get("policy") != "drop":
         return None
     return list(r.result.get("nixfort_input_ssh_sources") or [])
@@ -399,7 +390,7 @@ def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
     # A. load against an allowed service — it must keep answering
     ap = allowed[0]
     log(f"A. нагрузка на разрешённый сервис {data_ip}:{ap}, {LOAD_CONNECTIONS} коротких соединений", "INFO")
-    a = _call(
+    a = call_node(
         client_factory,
         client,
         "net.load_test.v1",
@@ -432,7 +423,7 @@ def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
     if denied:
         dp = denied[0]
         log(f"B. нагрузка на запрещённый порт {data_ip}:{dp}, межсетевой экран должен поглотить её", "INFO")
-        b = _call(
+        b = call_node(
             client_factory,
             client,
             "net.load_test.v1",
@@ -457,7 +448,7 @@ def load_resilience(job, log, client_factory, sleep) -> ProtectionTest:
 
     # service still responsive right after the load
     sleep(2)
-    chk = _call(
+    chk = call_node(
         client_factory, client, "net.tcp_probe.v1", {"targets": [{"ip": data_ip, "port": ap}], "timeout_ms": 1500}
     )
     after_open = chk.ok and (chk.result.get("results") or [{}])[0].get("result") == "OPEN"

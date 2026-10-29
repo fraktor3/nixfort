@@ -1,3 +1,5 @@
+"""Pages: traffic records, capture and upload, one record with its analysis; download."""
+
 from django.contrib import messages
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect, render

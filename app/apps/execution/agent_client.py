@@ -139,3 +139,14 @@ def client_for(node) -> AgentClient:
             host_key_b64=hk.public_key,
         )
     )
+
+
+def call_node(
+    client_factory, node, action: str, params: dict[str, Any] | None = None, deadline_s: int = 60
+) -> AgentResponse:
+    """One agent call that never raises: a node that cannot be reached (host key not confirmed, SSH failure)
+    answers TRANSPORT_ERROR like any other failed call, so callers handle a single result type."""
+    try:
+        return client_factory(node).call(action, params or {}, deadline_s=deadline_s)
+    except TransportError as exc:
+        return AgentResponse(action=action, state="TRANSPORT_ERROR", error_code=exc.code)

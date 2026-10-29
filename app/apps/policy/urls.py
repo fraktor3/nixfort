@@ -1,3 +1,5 @@
+"""URLs of the connection policy pages."""
+
 from django.urls import path
 
 from . import views

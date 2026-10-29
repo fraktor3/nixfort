@@ -118,10 +118,3 @@ def _update_node_status(node: Node, facts: dict, transport_error: str | None, jo
         node.last_inventory_at = timezone.now()
         fields.append("last_inventory_at")
     node.save(update_fields=fields)
-
-
-def latest_snapshot(node: Node, max_age_s: int | None = None) -> InventorySnapshot | None:
-    snap = node.snapshots.order_by("-collected_at").first()
-    if snap and max_age_s is not None and (timezone.now() - snap.collected_at).total_seconds() > max_age_s:
-        return None
-    return snap

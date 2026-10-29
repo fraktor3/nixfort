@@ -1,3 +1,5 @@
+"""Pages: IDS sensor state and events, protection scenarios and their results."""
+
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -7,7 +9,7 @@ from apps.execution.models import Job, JobType
 from apps.pcap import charts
 from apps.pcap.models import PcapCapture
 
-from .models import IdsEvent, ProtectionTest
+from .models import TEST_RULE_SIDS, IdsEvent, ProtectionTest
 
 
 def _sensor_status(project):
@@ -29,7 +31,7 @@ def sensor(request, project_id):
     events = IdsEvent.objects.filter(project=project).select_related("node")
     only_nixfort = request.GET.get("all") != "1"
     if only_nixfort:
-        events = events.filter(signature_id__gte=9000001, signature_id__lte=9000099)
+        events = events.filter(signature_id__range=TEST_RULE_SIDS)
     last_fetch = Job.objects.filter(project=project, type=JobType.IDS_FETCH).order_by("-created_at").first()
     return render(
         request,

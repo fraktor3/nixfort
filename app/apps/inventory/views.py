@@ -1,3 +1,5 @@
+"""Pages: projects, project overview, nodes, host keys, port scans; their actions."""
+
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
@@ -56,7 +58,7 @@ def project_detail(request, project_id):
     project = request.project
     nodes = list(project.nodes.filter(is_active=True).select_related("hostkey").order_by("name"))
     active_policy = FlowPolicyVersion.objects.filter(project=project, status=FlowPolicyVersion.Status.ACTIVE).first()
-    jobs = Job.objects.filter(project=project).select_related("node").order_by("-created_at")[:8]
+    jobs = Job.objects.filter(project=project).select_related("node", "requested_by").order_by("-created_at")[:5]
     runs = list(AuditRun.objects.filter(project=project, state="DONE").order_by("-created_at"))
     plans = list(project.plans.order_by("-created_at")[:1])
     latest_tests = {}
@@ -79,8 +81,6 @@ def project_detail(request, project_id):
         "action": overview.next_action(project, steps, nodes, runs, plans) if can_run else None,
         "matrix": matrix,
         "latest_run": latest,
-        "first_run": first if first and latest and first.id != latest.id else None,
-        "finding": overview.finding(latest, nodes),
         "scheme": overview.segment_svg(project, nodes, overview.node_states(matrix)),
         "netlist": overview.segment_rows(project, nodes),
         "protection": sorted(protection, key=lambda t: t.scenario),
@@ -159,7 +159,6 @@ def node_detail(request, project_id, node_id):
         "can_edit": has_perm(request.user, Perm.EDIT_PROJECT, request.project),
         "can_confirm": has_perm(request.user, Perm.CONFIRM_HOSTKEY, request.project),
         "can_run": has_perm(request.user, Perm.RUN_JOBS, request.project),
-        "hostkey_form": HostKeyForm(),
     }
     return render(request, "inventory/node_detail.html", ctx)
 

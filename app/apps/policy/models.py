@@ -1,3 +1,5 @@
+"""Connection policy versions, their flows and connectivity probe results."""
+
 from __future__ import annotations
 
 from django.conf import settings

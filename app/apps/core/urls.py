@@ -1,3 +1,5 @@
+"""URLs of the overview, the audit journal, terms and privacy pages."""
+
 from django.urls import path
 
 from . import views

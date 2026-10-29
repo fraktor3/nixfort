@@ -11,12 +11,6 @@ from apps.core.models import Action
 from .models import HostKey, Node
 
 
-def node_operational_status(node: Node) -> str:
-    if node.confirmed_hostkey is None:
-        return Node.Status.KEY_PENDING
-    return node.status if node.status != Node.Status.KEY_PENDING else Node.Status.READY
-
-
 @transaction.atomic
 def set_hostkey(node: Node, data: dict, user, request=None, source: str = "manual") -> HostKey:
     """Store a new (unconfirmed) host key. Any change resets confirmation -> operations blocked."""

@@ -6,7 +6,7 @@
   <thead><tr><th>План</th><th class="p2">Аудит</th><th class="p3">Сформировал</th><th class="num">Шагов</th><th>Риск</th><th class="p2">Утвердил</th><th>Состояние</th></tr></thead>
   <tbody>{% for p in plans %}<tr><td><a href="{% url 'remediation:plan_detail' project.id p.id %}">{{ p.created_at|full }}</a></td>
     <td class="p2" title="{{ p.audit_run.created_at|full }}">{{ p.audit_run.created_at|when }}</td>
-    <td class="p3">{{ p.created_by|default:"–" }}</td><td class="num" data-l="шагов">{{ p.items.count }}</td><td data-l="риск">{{ p.risk|risk_ru }}</td><td class="p2">{{ p.approved_by|default:"–" }}</td>
+    <td class="p3">{{ p.created_by|default:"–" }}</td><td class="num" data-l="шагов">{{ p.n_items }}</td><td data-l="риск">{{ p.risk|risk_ru }}</td><td class="p2">{{ p.approved_by|default:"–" }}</td>
     <td>{% if p.state == "DRAFT" %}<span class="st s-unknown">ждёт утверждения</span>{% else %}<span class="st {{ p.state|st }}">{{ p.get_state_display }}</span>{% endif %}</td></tr>
   {% empty %}<tr><td colspan="7" class="empty">Планов нет. План формируется на странице аудита, если есть нарушения.</td></tr>{% endfor %}</tbody>
 </table></div>

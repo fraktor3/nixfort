@@ -1,3 +1,5 @@
+"""Pages: users list, new user, user card (roles, enable and disable). Sign-in is Django's LoginView (urls.py)."""
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction

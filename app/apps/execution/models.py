@@ -1,3 +1,5 @@
+"""Jobs: type, queue, state machine, progress and the job log."""
+
 from __future__ import annotations
 
 from django.conf import settings

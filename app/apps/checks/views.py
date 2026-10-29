@@ -1,3 +1,5 @@
+"""Pages: audit runs, results of one run, one result with its evidence (also as a side-panel fragment)."""
+
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 

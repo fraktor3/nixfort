@@ -1,3 +1,5 @@
+"""Job handler of the security-log summary."""
+
 from apps.execution import services as job_services
 from apps.execution.models import Job, JobType
 from apps.execution.registry import register

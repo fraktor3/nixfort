@@ -1,3 +1,5 @@
+"""Remediation plans and their items (one action on one node)."""
+
 from django.conf import settings
 from django.db import models
 

@@ -1,3 +1,5 @@
+"""Pages: reports list and one report; JSON and PDF downloads."""
+
 from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -26,7 +28,9 @@ def report_list(request, project_id):
         "reports/report_list.html",
         {
             "project": project,
-            "reports": Report.objects.filter(project=project).select_related("generated_by")[:50],
+            "reports": Report.objects.filter(project=project).select_related("generated_by", "before_run", "after_run")[
+                :50
+            ],
             "runs": runs,
             "default_before": runs[0].id if runs else None,
             "default_after": runs[-1].id if runs else None,

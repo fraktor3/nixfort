@@ -1,3 +1,5 @@
+"""Context of every page: project navigation, phone tab bar, quick-jump targets, build id."""
+
 import hashlib
 from functools import lru_cache
 from pathlib import Path

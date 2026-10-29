@@ -1,3 +1,6 @@
+"""Security headers (CSP and friends) and the per-request roles cache."""
+
+
 class SecurityHeadersMiddleware:
     """Content-Security-Policy and a few extra headers. All assets are local (no CDN)."""
 
@@ -15,3 +18,17 @@ class SecurityHeadersMiddleware:
         response.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         response.setdefault("Cross-Origin-Opener-Policy", "same-origin")
         return response
+
+
+class RequestRolesCacheMiddleware:
+    """Gives the signed-in user of this request an empty roles cache (used by rbac.roles_of).
+    The cache lives exactly as long as the request: every request loads a fresh user object."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            user._request_roles = {}
+        return self.get_response(request)

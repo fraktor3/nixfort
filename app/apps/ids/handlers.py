@@ -1,3 +1,5 @@
+"""Job handlers: read Suricata events, send the IDS test marker, run a protection scenario."""
+
 from apps.execution import services
 from apps.execution.models import Job, JobType
 from apps.execution.registry import register

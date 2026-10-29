@@ -1,3 +1,5 @@
+"""Role assignments: a user gets ADMIN, OPERATOR or VIEWER globally or in one project."""
+
 from django.conf import settings
 from django.db import models
 

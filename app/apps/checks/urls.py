@@ -1,3 +1,5 @@
+"""URLs of the audit pages."""
+
 from django.urls import path
 
 from . import views

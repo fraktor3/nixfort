@@ -1,3 +1,5 @@
+"""URLs of the traffic pages."""
+
 from django.urls import path
 
 from . import views

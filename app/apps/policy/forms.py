@@ -1,3 +1,5 @@
+"""Form of one policy flow."""
+
 from django import forms
 
 from apps.inventory.models import Node

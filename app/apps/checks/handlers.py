@@ -1,3 +1,5 @@
+"""Job handler of the audit (queue «readonly»)."""
+
 from apps.execution import services
 from apps.execution.models import Job, JobState, JobType
 from apps.execution.registry import register

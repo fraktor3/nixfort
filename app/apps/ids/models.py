@@ -1,6 +1,11 @@
+"""Suricata events read from the sensor and protection test results."""
+
 from django.db import models
 
 from apps.core.models import BaseModel
+
+# Suricata rules shipped with the agent (sensor profile): sid range reserved for the test rules.
+TEST_RULE_SIDS = (9000001, 9000099)
 
 
 class IdsEvent(BaseModel):
@@ -28,10 +33,6 @@ class IdsEvent(BaseModel):
                 name="uniq_ids_event",
             )
         ]
-
-    @property
-    def is_nixfort_rule(self) -> bool:
-        return self.signature_id is not None and 9000001 <= self.signature_id <= 9000099
 
 
 class ProtectionTest(BaseModel):

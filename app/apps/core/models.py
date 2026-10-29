@@ -1,3 +1,5 @@
+"""Shared base model (UUID, timestamps) and the append-only audit journal (AuditEvent)."""
+
 from __future__ import annotations
 
 import uuid

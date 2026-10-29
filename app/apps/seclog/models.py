@@ -1,3 +1,5 @@
+"""Security-log summaries (immutable snapshot per run)."""
+
 from django.conf import settings
 from django.db import models
 

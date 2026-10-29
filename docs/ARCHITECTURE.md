@@ -32,51 +32,73 @@
 
 ```
 nixfort/
-├── AGENTS.md  README.md  compose.yaml  .env.example  .gitignore  pyproject.toml  Makefile
-├── app/                          # Django-проект (контроллер)
+├── AGENTS.md  README.md  compose.yaml  .env.example  .gitignore  pyproject.toml  Makefile  conftest.py
+├── app/                              # Django-проект (контроллер)
 │   ├── manage.py
-│   ├── config/                   # settings/{base,dev,test,prod}.py, urls.py, celery.py, wsgi.py
-│   ├── templates/  static/       # свои css/app.css и js/app.js; htmx и шрифты IBM Plex локально в static/vendor/
-│   └── apps/
-│       ├── core/                 # общие enum, базовые модели, RBAC-хелперы, журнал действий (AuditEvent)
-│       ├── accounts/             # пользователи, роли, вход/выход, bootstrap-админ
-│       ├── inventory/            # Project, Node, HostKey, InventorySnapshot, Nmap-скан
-│       ├── policy/               # FlowPolicyVersion, Flow, конфликты, ConnectivityTest + пробы (connectivity.py)
-│       ├── execution/            # Job, очереди, блокировки, SSH-транспорт, клиент агента, реестр действий
-│       ├── checks/               # каталог проверок, движок, AuditRun, CheckResult, Evidence
-│       ├── remediation/          # RemediationPlan/Item, планировщик, оркестратор
-│       ├── ids/                  # события Suricata
-│       ├── pcap/                 # запись и анализ трафика (TShark)
-│       ├── seclog/               # сводка журналов безопасности (входы SSH, баны, IDS)
-│       └── reports/              # HTML/PDF/JSON отчёты
-├── agent/                        # узловой агент, ТОЛЬКО стандартная библиотека Python 3
+│   ├── config/                       # settings/{base,dev,test,prod}.py, urls.py, celery.py, wsgi.py
+│   ├── templates/                    # страницы по модулям (accounts/, checks/, …) + base.html и core/_nav.html
+│   ├── static/                       # css/app.css, js/app.js, img/mark.svg; vendor/: htmx и шрифты IBM Plex
+│   └── apps/                         # модули предметной области, см. таблицу ниже
+├── agent/                            # узловой агент, ТОЛЬКО стандартная библиотека Python 3
+│   ├── run.py  rollback.py           # точки входа: обработка запроса и автооткат по таймеру
+│   ├── install.sh                    # установка агента на узел
 │   ├── nixfort_agent/
-│   │   ├── __main__.py           # точка входа: читает JSON из stdin, пишет JSON в stdout
-│   │   ├── protocol.py           # схема запроса/ответа, валидация
-│   │   ├── registry.py           # allowlist action_id → handler
-│   │   ├── runner.py             # единственная обёртка subprocess (таймаут, лимит вывода)
-│   │   ├── osprofile.py          # пути и команды по ОС (ubuntu-24.04, astra-1.8)
-│   │   ├── snapshots.py          # снимки и откат принадлежащих NIXFORT файлов
-│   │   ├── rollback_timer.py     # systemd-run таймер автоотката
-│   │   └── actions/              # system.py, ssh.py, nft.py, fail2ban.py, suricata.py, net.py, pkg.py, mutation.py
-│   ├── templates/                # шаблоны конфигов (sshd, jail, nft, suricata) — рендерит агент
-│   ├── install.sh                # установка агента на узел
+│   │   ├── __main__.py               # читает JSON из stdin, пишет JSON в stdout
+│   │   ├── protocol.py  schema.py    # конверт запроса/ответа и проверка параметров
+│   │   ├── registry.py               # allowlist «действие → обработчик»
+│   │   ├── context.py  errors.py     # контекст вызова, коды ошибок
+│   │   ├── runner.py                 # единственная обёртка subprocess (таймаут, лимит вывода)
+│   │   ├── osprofile.py              # пути и команды по ОС (ubuntu-24.04, astra-1.8)
+│   │   ├── parsers.py  fsutil.py     # разбор вывода утилит, безопасная запись файлов
+│   │   ├── mutation.py  snapshots.py  rollback_timer.py  rollback_main.py   # снимок → применение → автооткат
+│   │   └── actions/                  # system, ssh, nft, fail2ban, suricata, net, capture, pkg, mutation
+│   ├── tools/make_request.py         # ручной запрос к агенту при отладке на стенде
 │   └── tests/
-├── deploy/                       # nginx.conf, Dockerfile(ы), entrypoint, скрипты
-├── lab/                          # скрипты стенда, внесение дефектов, сценарий демо
-├── tests/                        # интеграционные и системные тесты контроллера
-├── docs/  thesis/
+├── deploy/                           # Dockerfile, entrypoint.sh, nginx.conf, генераторы .env и сертификата
+├── lab/                              # внесение дефектов, скрипты стенда, отчёты испытаний (lab/reports)
+├── tests/                            # интеграционный тест SSH с настоящим агентом
+├── docs/                             # архитектура, протокол, проверки, безопасность, решения, карточки задач
+└── thesis/                           # материалы текста ВКР
 ```
+
+Каждый модуль `app/apps/<модуль>/` устроен одинаково, поэтому место любого кода предсказуемо:
+
+| Файл | Что в нём |
+|---|---|
+| `models.py` | данные модуля |
+| `views.py`, `urls.py` | страницы и их адреса; проверка прав декоратором `perm_required` |
+| `services.py` | операции предметной области, которые вызывают страницы и задания |
+| `handlers.py` | обработчики фоновых заданий модуля (регистрация `@register(JobType.…)`) |
+| `forms.py` | формы ввода |
+| `tests/` | тесты модуля |
+
+| Модуль | Отвечает за | Особые файлы |
+|---|---|---|
+| `core` | права (RBAC), журнал действий, общие базовые модели, обзор всех проектов, оформление страниц | `rbac.py`, `audit.py`, `redact.py`, `middleware.py`, `context_processors.py` (меню, быстрый переход), `templatetags/nx.py` (фильтры шаблонов), `storage.py` (статика с хешем) |
+| `accounts` | пользователи и роли, вход | `signals.py` (вход и выход в журнал) |
+| `inventory` | проекты, узлы, ключи узлов, инвентаризация, сканирование портов, обзор проекта | `collector.py`, `overview.py` (порядок работы, матрица, схема), `validators.py`, `adapters/nmap.py` |
+| `policy` | политика соединений и пробы | `connectivity.py` |
+| `execution` | задания, очереди, блокировки, связь с агентом | `agent_client.py` (`call_node` — вызов без исключений), `transport.py` (SSH), `registry.py`, `tasks.py` (Celery) |
+| `checks` | аудит | `domain.py` (каталог проверок, чистая логика без БД и сети) |
+| `remediation` | планы исправлений | `planner.py` (план из нарушений), `orchestrator.py` (выполнение с автооткатом) |
+| `ids` | датчик Suricata, проверка защиты | `scenarios.py` (имитация атак и оценка уровней защиты) |
+| `pcap` | запись и разбор трафика | `analyzer.py` (TShark), `charts.py` (графики SVG), `storage.py` |
+| `seclog` | сводка журналов безопасности | |
+| `reports` | отчёты HTML, PDF, JSON | `builder.py` (неизменяемый снимок данных) |
 
 Правило зависимостей между модулями (стрелка = «может импортировать»):
 ```
-accounts, core ◄── все
-inventory ◄── policy, checks, remediation, ids, reports
-execution ◄── inventory(инвентаризация), checks, remediation, ids, pcap
+core, accounts ◄── все
+inventory ◄── accounts, policy, checks, remediation, ids, reports
+execution ◄── inventory, policy, checks, remediation, ids, pcap, seclog, reports
+policy ◄── checks, remediation, ids, reports
 checks ◄── remediation, reports
 remediation ◄── reports
+ids ◄── seclog, reports
+pcap ◄── ids
 ```
-Обратные импорты запрещены. Взаимодействие — через функции `services.py` модуля, не через чужие модели напрямую (чтение моделей для отображения — допустимо).
+Исключения, все только на чтение: `core/rbac.py` читает роли (`accounts`) и проекты (`inventory`) для проверки доступа; экраны-сводки `core/views.py`, `core/context_processors.py`, `core/templatetags/nx.py` и `inventory/views.py` (обзор проекта) читают модели других модулей для отображения и ничего в них не меняют; `core/management/commands/selfcheck.py` проверяет очередь заданий.
+Обратные импорты запрещены. Изменения в чужом модуле — только через его `services.py` или задание.
 
 ## 3. Модель данных (логическая)
 

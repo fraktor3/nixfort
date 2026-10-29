@@ -1,3 +1,5 @@
+"""URLs of the IDS sensor and protection test pages."""
+
 from django.urls import path
 
 from . import views

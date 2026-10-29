@@ -156,23 +156,6 @@ def next_action(project, steps, nodes, runs, plans):
     return {"label": "Сформировать отчёт", "url": nxt["url"], "post": False}
 
 
-def finding(latest, nodes) -> str | None:
-    """One sentence about the most important fact in the latest audit."""
-    if latest is None:
-        return None
-    names = {n.id: n.name for n in nodes}
-    bad = [r for r in latest.results.all() if r.status in ("FAIL", "ERROR", "UNKNOWN")]
-    if not bad:
-        return "По последнему аудиту все применимые проверки пройдены."
-    bad.sort(key=lambda r: (-RANK.get(r.status, 0), r.check_id))
-    head = ", ".join(f"{r.check_id} на {names.get(r.node_id, '?')}" for r in bad[:4])
-    more = f" и ещё {len(bad) - 4}" if len(bad) > 4 else ""
-    fails = sum(1 for r in bad if r.status == "FAIL")
-    rest = len(bad) - fails
-    what = f"не пройдено {fails}" + (f", без данных {rest}" if rest else "")
-    return f"В последнем аудите {what}: {head}{more}."
-
-
 # ---------------------------------------------------------------- segment scheme (server-side SVG)
 def _net_name(project, cidr: str, nodes) -> str:
     net = ipaddress.ip_network(cidr, strict=False)

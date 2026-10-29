@@ -1,3 +1,5 @@
+"""Audit data: AuditRun, CheckResult per node and check, Evidence (source and SHA-256 of the facts)."""
+
 from django.conf import settings
 from django.db import models
 
