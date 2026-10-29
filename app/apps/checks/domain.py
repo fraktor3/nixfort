@@ -207,7 +207,7 @@ def fw_02(facts, ctx):
     meta = n.get("policy_meta") or {}
     present = n.get("nixfort_table_present")
     obs = {"table": present, "policy_version": meta.get("policy_version")}
-    want = f"таблица inet nixfort с версией политики v{ctx.active_policy_version}"
+    want = f"управляемая таблица правил с версией политики v{ctx.active_policy_version}"
     if present and meta.get("policy_version") == ctx.active_policy_version:
         return Outcome(PASS, obs, want, "На шлюзе применена текущая версия политики.")
     why = "управляемая таблица правил отсутствует" if not present else f"применена версия v{meta.get('policy_version')}"

@@ -1,11 +1,16 @@
-"""Server-side SVG line charts (no JavaScript libraries; also used in PDF reports). Only numbers and
-labels written by NIXFORT reach the markup."""
+"""Server-side SVG line charts (no JavaScript libraries). Only numbers and labels written by the
+application reach the markup.
+
+The chart keeps a constant text size at any width: labels and gridlines are placed in pixels and
+percentages of the outer SVG, and only the data lines live in a stretched inner viewBox
+(non-scaling strokes). A phone shows the same 12px labels as a desktop."""
 
 from __future__ import annotations
 
 from html import escape
 
-PALETTE = ("#1d5fbf", "#121518", "#8a9097")  # the one data hue first, then ink, then grey
+PALETTE = ("#1f5aa8", "#14171a", "#8a9199")  # the data hue first, then ink, then grey
+INK, MUTED, GRID, AXIS = "#14171a", "#636b73", "#e3e6ea", "#c3c9cf"
 
 
 def _nice_top(v: float) -> tuple[float, float]:
@@ -21,51 +26,52 @@ def _nice_top(v: float) -> tuple[float, float]:
     return mag * 40, mag * 10
 
 
-def line_chart(series: list[tuple[str, list[float]]], step_s: int, title: str = "", height: int = 210,
-               width: int = 560, unit: str = "") -> str:  # fmt: skip
+def line_chart(series: list[tuple[str, list[float]]], step_s: int, title: str = "", height: int = 200,
+               unit: str = "") -> str:  # fmt: skip
     n = max((len(v) for _, v in series), default=0)
     if n == 0:
         return ""
     peak = max((max(v) if v else 0) for _, v in series)
     top, tick = _nice_top(peak)
-    left, right, up, down = 44, 12, 44, 26
-    w, h = width - left - right, height - up - down
-
-    def x(i):
-        return left + (w * i / max(n - 1, 1))
+    up, down = 48, 22  # title + legend above, x labels below
+    h = height - up - down
 
     def y(v):
         return up + h - (h * v / top)
 
-    out = [f'<svg class="chart" viewBox="0 0 {width} {height}" role="img" aria-label="{escape(title)}" '
-           'xmlns="http://www.w3.org/2000/svg" font-family="Plex, sans-serif" font-size="11">']  # fmt: skip
+    out = [f'<svg class="chart" width="100%" height="{height}" role="img" aria-label="{escape(title)}" '
+           f'xmlns="http://www.w3.org/2000/svg" font-family="Plex, sans-serif" font-size="12">']  # fmt: skip
     if title:
-        out.append(f'<text x="0" y="13" fill="#121518" font-size="13" font-weight="500">{escape(title)}</text>')
+        out.append(f'<text x="0" y="14" fill="{INK}" font-size="13" font-weight="600">{escape(title)}</text>')
+    lx = 0.0
+    for k, (label, _values) in enumerate(series):  # legend
+        color = PALETTE[k % len(PALETTE)]
+        text = f"{label}{unit}"
+        out.append(f'<rect x="{lx:.0f}" y="27" width="12" height="2" fill="{color}"/>')
+        out.append(f'<text x="{lx + 16:.0f}" y="32" fill="{MUTED}">{escape(text)}</text>')
+        lx += 32 + len(text) * 6.6
     k = 0
-    while k * tick <= top + 1e-9:  # gridlines + y ticks
+    while k * tick <= top + 1e-9:  # gridlines; the value sits on the line at the right edge
         yy = y(k * tick)
-        out.append(f'<line x1="{left}" x2="{left + w}" y1="{yy:.1f}" y2="{yy:.1f}" '
-                   f'stroke="{"#9aa1a8" if k == 0 else "#e1e5e9"}" stroke-width="1"/>')  # fmt: skip
-        out.append(f'<text x="{left - 6}" y="{yy + 4:.1f}" text-anchor="end" fill="#545b62">{_fmt(k * tick)}</text>')
+        out.append(f'<line x1="0" x2="100%" y1="{yy:.1f}" y2="{yy:.1f}" stroke="{AXIS if k == 0 else GRID}"/>')
+        if k:
+            out.append(f'<text x="100%" y="{yy - 4:.1f}" text-anchor="end" fill="{MUTED}">{_fmt(k * tick)}</text>')
         k += 1
     labels = 6 if n >= 6 else n
     idx = sorted({round(j * (n - 1) / max(labels - 1, 1)) for j in range(labels)})
     for i in idx:  # x labels: seconds from the start of the capture
+        pct = 100 * i / max(n - 1, 1)
         anchor = "start" if i == 0 else "end" if i == n - 1 else "middle"
-        out.append(
-            f'<text x="{x(i):.1f}" y="{height - 6}" text-anchor="{anchor}" fill="#545b62">{_fmtsec(i * step_s)}</text>'
-        )
-    lx = left
-    for k, (label, values) in enumerate(series):
+        out.append(f'<text x="{pct:.2f}%" y="{height - 4}" text-anchor="{anchor}" fill="{MUTED}">'
+                   f'{_fmtsec(i * step_s)}</text>')  # fmt: skip
+    out.append(f'<svg x="0" y="{up}" width="100%" height="{h}" viewBox="0 0 1000 {h}" preserveAspectRatio="none" '
+               'overflow="visible">')  # fmt: skip
+    for k, (_label, values) in enumerate(series):
         color = PALETTE[k % len(PALETTE)]
-        pts = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(values))
+        pts = " ".join(f"{1000 * i / max(n - 1, 1):.1f},{h - h * v / top:.1f}" for i, v in enumerate(values))
         out.append(f'<polyline fill="none" stroke="{color}" stroke-width="{2 if k == 0 else 1.5}" '
-                   f'stroke-linejoin="round" points="{pts}"/>')  # fmt: skip
-        text = f"{label}{unit}"
-        out.append(f'<rect x="{lx}" y="25" width="10" height="2" fill="{color}"/>')
-        out.append(f'<text x="{lx + 14}" y="30" fill="#545b62">{escape(text)}</text>')
-        lx += 22 + len(text) * 6.4
-    out.append("</svg>")
+                   f'vector-effect="non-scaling-stroke" stroke-linejoin="round" points="{pts}"/>')  # fmt: skip
+    out.append("</svg></svg>")
     return "".join(out)
 
 

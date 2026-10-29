@@ -1,4 +1,5 @@
 {% extends "base.html" %}
 {% block title %}Условия использования{% endblock %}
+{% block here %}Условия использования{% endblock %}
 {% block content %}{% include "core/_terms_body.html" %}{% endblock %}
 {% block public_content %}<a class="back" href="{% url 'accounts:login' %}">Ко входу</a>{% include "core/_terms_body.html" %}{% endblock %}

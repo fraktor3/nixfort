@@ -8,7 +8,7 @@
 </div>
 
 {% if can_plan and total.FAIL %}
-<form method="post" action="{% url 'remediation:plan_create' project.id run.id %}" class="confirm-line mb-16">{% csrf_token %}
+<form method="post" action="{% url 'remediation:plan_create' project.id run.id %}" class="confirm-line">{% csrf_token %}
   <label class="check"><input type="checkbox" name="key_only_confirmed" id="ko"><span>Вход администраторов по ключу проверен, пароль по SSH можно отключить (SSH-02)</span></label>
   <button class="btn primary">Сформировать план исправлений</button>
 </form>{% endif %}
@@ -32,5 +32,5 @@
     {% for c in row.cells %}<td{% if not c or c.status == "NOT_APPLICABLE" %} class="hide-s"{% else %} data-l="{{ c.node.name }}"{% endif %}>{% if c %}{% if c.status == "NOT_APPLICABLE" %}<span class="muted">–</span>{% else %}<a class="st {{ c.status|st }}" href="{% url 'checks:result_detail' project.id run.id c.id %}" data-drawer="{{ row.check.id }} · {{ c.node.name }}" title="{{ c.explanation|nb }}"><span class="sr-only">{{ c.node.name }}: </span>{{ c.get_status_display }}</a>{% endif %}{% endif %}</td>{% endfor %}</tr>
   {% endfor %}</tbody>
 </table></div>
-<div class="box empty mt-8" data-none="t-res" hidden>Под фильтр ничего не попало.</div>
+<div class="box empty" data-none="t-res" hidden>Под фильтр ничего не попало.</div>
 {% endblock %}

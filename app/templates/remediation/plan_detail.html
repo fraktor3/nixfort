@@ -8,7 +8,7 @@
   {% if can_reject %}<div class="actions"><form method="post" action="{% url 'remediation:plan_reject' project.id plan.id %}">{% csrf_token %}<button class="btn">Отклонить</button></form></div>{% endif %}
 </div>
 
-{% if can_approve %}<form method="post" action="{% url 'remediation:plan_approve' project.id plan.id %}" class="confirm-line mb-16">{% csrf_token %}
+{% if can_approve %}<form method="post" action="{% url 'remediation:plan_approve' project.id plan.id %}" class="confirm-line">{% csrf_token %}
   <label class="check" for="confirm"><input type="checkbox" name="confirm" id="confirm"><span>Шаги и риски проверены. Изменения применяются с автоматическим откатом при сбое.</span></label>
   <button class="btn primary">Утвердить и выполнить</button>
 </form>{% endif %}
@@ -49,7 +49,7 @@
     <tbody>{% for r in before_after %}{% if r.changed %}<tr><td><span class="id">{{ r.check_id }}</span>{{ r.title|nb }}</td><td class="mono">{{ r.node }}</td>
       <td data-l="до"><span class="st {{ r.before|st }}">{{ r.before|status_ru }}</span></td><td data-l="после"><span class="st {{ r.after|st }}">{{ r.after|status_ru }}</span></td></tr>{% endif %}{% endfor %}</tbody>
   </table></div>
-  {% if unchanged_count %}<details class="mt-8"><summary class="small">Без изменений: {{ unchanged_count }}</summary>
+  {% if unchanged_count %}<details><summary class="small">Без изменений: {{ unchanged_count }}</summary>
     <div class="tw mt-8"><table class="t tight stack"><tbody>{% for r in before_after %}{% if not r.changed %}<tr><td><span class="id">{{ r.check_id }}</span>{{ r.title|nb }}</td><td class="mono">{{ r.node }}</td><td><span class="st {{ r.after|st }}">{{ r.after|status_ru }}</span></td></tr>{% endif %}{% endfor %}</tbody></table></div>
   </details>{% endif %}
 </section>{% endif %}

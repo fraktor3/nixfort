@@ -17,5 +17,5 @@
     <td class="num" data-v="{{ j.created_at|date:'U' }}" title="{{ j.created_at|full }}">{{ j.created_at|when }}</td></tr>
   {% empty %}<tr><td colspan="6" class="empty">Заданий нет.</td></tr>{% endfor %}</tbody>
 </table></div>
-<div class="box empty mt-8" data-none="t-jobs" hidden>Под фильтр ничего не попало.</div>
+<div class="box empty" data-none="t-jobs" hidden>Под фильтр ничего не попало.</div>
 {% endblock %}

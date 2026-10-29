@@ -20,5 +20,5 @@
       {% if tl.packets %}{{ tl.packets|safe }}{% endif %}</div>
     {% endwith %}{% else %}<div class="empty">Запись трафика не получена: {{ cap.error|default:"обрабатывается" }}</div>{% endif %}</div></section>{% endif %}
 </div>
-{% if t.details %}<details class="sec mt-24"><summary class="sec-h"><h2>Исходные данные</h2></summary><div class="box box-body"><pre class="xs">{{ t.details|pprint }}</pre></div></details>{% endif %}
+{% if t.details %}<details class="sec"><summary class="sec-h"><h2>Исходные данные</h2></summary><div class="box box-body"><pre class="xs">{{ t.details|pprint }}</pre></div></details>{% endif %}
 {% endblock %}

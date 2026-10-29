@@ -10,7 +10,7 @@
     {% if shown.editable and can_activate %}<form method="post" action="{% url 'policy:activate' project.id %}">{% csrf_token %}<button class="btn primary">Активировать v{{ shown.version }}</button></form>{% endif %}
   </div>
 </div>
-{% for c in conflicts %}<div class="note{% if c.kind == 'contradiction' %} bad{% endif %} mb-8"><b>{% if c.kind == 'contradiction' %}Противоречие.{% else %}Предупреждение.{% endif %}</b> {{ c.message|nb }}</div>{% endfor %}
+{% for c in conflicts %}<div class="note{% if c.kind == 'contradiction' %} bad{% endif %}"><b>{% if c.kind == 'contradiction' %}Противоречие.{% else %}Предупреждение.{% endif %}</b> {{ c.message|nb }}</div>{% endfor %}
 <div class="cols">
   <section class="sec" aria-labelledby="h-v">
     <div class="sec-h"><h2 id="h-v">Потоки{% if shown %}<span class="n">{{ flows|length }}</span>{% endif %}</h2>

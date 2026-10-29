@@ -5,7 +5,7 @@
   <dt>Изменилось проверок</dt><dd>{{ changed|length }}</dd>
   <dt>Полнота</dt><dd>{{ complete }} из 7</dd>
 </dl></div>
-<p class="xs muted mt-8">Версия {{ d.nixfort_version }}, каталог проверок {{ d.catalog_version }}.</p>
+<p class="xs muted">Версия {{ d.nixfort_version }}, каталог проверок {{ d.catalog_version }}.</p>
 
 <h2>1. Объект проверки</h2>
 <p>Проект <b>{{ d.scope.project.name }}</b>{% if d.scope.project.description %}: {{ d.scope.project.description|nb }}{% endif %} Подсети <span class="mono">{{ d.scope.project.cidrs|join:", " }}</span>. Управление: контроллер <span class="mono">{{ d.scope.project.controller_ip }}</span>{% if d.scope.project.admin_sources %}, администраторы <span class="mono">{{ d.scope.project.admin_sources|join:", " }}</span>{% endif %}.</p>
@@ -39,7 +39,7 @@
 <h2>5. Доказательства</h2>
 <h3>Наблюдаемые значения по изменившимся проверкам</h3>
 <div class="tw"><table class="t stack"><thead><tr><th >Узел и проверка</th><th>Ожидалось</th><th>Наблюдалось после</th><th>Объяснение</th></tr></thead><tbody>
-{% for c in changed %}<tr><td ><span class="mono">{{ c.node }}</span> <span class="id">{{ c.check_id }}</span></td><td class="mono small">{{ c.expected|default:"–" }}</td><td class="mono small">{{ c.observed|default:"–" }}</td><td class="small">{{ c.explanation|nb }}</td></tr>
+{% for c in changed %}<tr><td ><span class="mono">{{ c.node }}</span> <span class="id">{{ c.check_id }}</span></td><td class="mono small wrap">{{ c.expected|default:"–"|nb }}</td><td class="mono small wrap">{{ c.observed|default:"–"|nb }}</td><td class="small">{{ c.explanation|nb }}</td></tr>
 {% empty %}<tr><td colspan="4" class="empty">Изменений результатов нет.</td></tr>{% endfor %}</tbody></table></div>
 {% for p in d.changes %}{% for i in p.items %}{% if i.probes %}<h3>Пробы соединений: {{ i.node }}, {{ i.action }}</h3>
 <div class="tw"><table class="t stack"><thead><tr><th >Этап</th><th>Поток</th><th>Откуда и куда</th><th>Результат</th><th>Вывод</th></tr></thead><tbody>

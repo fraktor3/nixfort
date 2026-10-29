@@ -17,11 +17,11 @@
 </dl></div>
 {% if d.findings %}<section class="sec"><div class="sec-h"><h2>Находки</h2><div class="tools"><span class="muted">по характеру трафика, требуют проверки</span></div></div>
   <div class="tw"><table class="t stack"><tbody>{% for f in d.findings %}<tr><td class="nowrap"><span class="st s-fail">{{ f.title }}</span></td><td>{{ f.detail }}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
-{% if tl.packets %}<div class="cols even mt-24">
+{% if tl.packets %}<div class="cols even">
   <div class="box box-body">{{ tl.packets|safe }}</div>
   <div class="box box-body">{{ tl.bytes|safe }}</div>
 </div>{% endif %}
-<div class="cols even mt-24">
+<div class="cols even">
   <section class="sec"><div class="sec-h"><h2>Протоколы</h2></div>
     <div class="tw"><table class="t tight"><thead><tr><th data-sort>Протокол</th><th class="num" data-sort="num">Пакетов</th><th class="num" data-sort="num">Байт</th></tr></thead><tbody>
     {% for p in d.protocols %}<tr><td>{{ p.protocol }}</td><td class="num">{{ p.frames }}</td><td class="num">{{ p.bytes }}</td></tr>{% endfor %}</tbody></table></div></section>

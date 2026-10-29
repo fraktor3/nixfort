@@ -9,7 +9,7 @@
     {% if can_run %}<form method="post" action="{% url 'inventory:node_inventory_run' project.id node.id %}">{% csrf_token %}<button class="btn primary" {% if not node.confirmed_hostkey %}disabled title="Сначала подтвердите ключ узла"{% endif %}>Инвентаризация</button></form>{% endif %}</div>
 </div>
 
-{% if hostkey and not hostkey.confirmed_at %}<div class="note mb-16">Ключ узла не подтверждён: операции с узлом запрещены. Сверьте отпечаток с выводом <span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span> на узле.</div>{% endif %}
+{% if hostkey and not hostkey.confirmed_at %}<div class="note">Ключ узла не подтверждён: операции с узлом запрещены. Сверьте отпечаток с выводом <span class="mono">ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</span> на узле.</div>{% endif %}
 
 <div class="cols">
   <section class="sec" aria-labelledby="h-inv">

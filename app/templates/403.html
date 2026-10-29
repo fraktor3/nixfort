@@ -1,3 +1,4 @@
 {% extends "base.html" %}{% block title %}Доступ запрещён{% endblock %}
+{% block here %}Доступ запрещён{% endblock %}
 {% block content %}<div class="head"><div><h1>Доступ запрещён</h1><div class="meta"><span>У вашей роли нет прав на это действие. Попытка записана в журнал действий.</span></div></div></div>{% endblock %}
 {% block public %}<main class="gate"><div class="gate-box"><h1>Доступ запрещён</h1><a class="btn" href="{% url 'accounts:login' %}">Войти</a></div></main>{% endblock %}

@@ -1,5 +1,6 @@
 {% extends "base.html" %}{% load nx %}
 {% block title %}{{ u.username }}{% endblock %}
+{% block here %}Пользователи{% endblock %}
 {% block content %}
 <div class="head"><div><div class="crumbs"><a href="{% url 'accounts:user_list' %}">Пользователи</a></div>
   <div class="t1"><h1>{{ u.username }}</h1><span class="st {% if u.is_active %}s-pass{% else %}s-off{% endif %}">{{ u.is_active|yesno:"включена,отключена" }}</span></div>

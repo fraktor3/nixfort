@@ -19,7 +19,7 @@
   <div>{% if t %}{% include "ids/_layers.html" %}{% else %}<div class="empty">Не запускался.</div>{% endif %}</div>
 </div>{% endfor %}
 </div>
-{% if history %}<details class="sec mt-24"><summary class="sec-h"><h2>История запусков<span class="n">{{ history|length }}</span></h2></summary>
+{% if history %}<details class="sec"><summary class="sec-h"><h2>История запусков<span class="n">{{ history|length }}</span></h2></summary>
   <div class="tw"><table class="t stack"><thead><tr><th>Запуск</th><th>Сценарий</th><th>Итог</th></tr></thead>
   <tbody>{% for t in history %}<tr><td><a href="{% url 'ids:protection_detail' project.id t.id %}">{{ t.created_at|full }}</a></td><td>{{ t.get_scenario_display }}</td><td><span class="st {{ t.verdict|st }}">{{ t.get_verdict_display }}</span></td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
 {% endblock %}

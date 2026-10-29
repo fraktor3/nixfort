@@ -216,9 +216,28 @@
   });
 
   /* ---------------------------------------------------------------- tables: row keys j/k + Enter */
-  var rowTable = $(".t[data-keys]");
+  // The active table is the one the user last clicked in; before any click, the page's main table
+  // (marked data-keys) or the first table with links.
+  var rowTable = null;
   var rowIdx = -1;
-  function rows() { return rowTable ? $$("tbody tr", rowTable).filter(function (tr) { return !tr.hidden && !tr.classList.contains("group") && tr.querySelector("a"); }) : []; }
+  function rowsOf(table) {
+    return table ? $$("tbody tr", table).filter(function (tr) { return !tr.hidden && !tr.classList.contains("group") && tr.querySelector("a"); }) : [];
+  }
+  function activeTable() {
+    if (!rowTable || !document.contains(rowTable)) {
+      rowTable = $(".t[data-keys]") || $$(".t").filter(function (t) { return rowsOf(t).length; })[0] || null;
+      rowIdx = -1;
+    }
+    return rowTable;
+  }
+  function rows() { return rowsOf(activeTable()); }
+  document.addEventListener("click", function (e) {
+    var tr = e.target.closest && e.target.closest(".t tbody tr");
+    if (!tr) return;
+    var table = tr.closest(".t");
+    if (table !== rowTable) { $$("tr.on", rowTable || document).forEach(function (x) { x.classList.remove("on"); }); rowTable = table; }
+    rowIdx = rowsOf(table).indexOf(tr);
+  });
   function moveRow(d) {
     var r = rows();
     if (!r.length) return;
@@ -254,7 +273,7 @@
     else if (e.key === "g") { gPending = true; gTimer = setTimeout(function () { gPending = false; }, 1200); }
     else if (e.key === "j") { moveRow(1); }
     else if (e.key === "k") { moveRow(-1); }
-    else if (e.key === "Enter" && rowTable && rowIdx >= 0) {
+    else if (e.key === "Enter" && activeTable() && rowIdx >= 0) {
       var r = rows()[rowIdx];
       var a = r && $("a", r);
       if (a) { a.click(); e.preventDefault(); }

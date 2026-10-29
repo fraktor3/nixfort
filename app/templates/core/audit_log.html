@@ -3,7 +3,7 @@
 {% block here %}Журнал действий{% endblock %}
 {% block content %}
 <div class="head"><div><h1>Журнал действий</h1><div class="meta"><span>только добавление записей</span>{% if page.paginator.count %}<span>записей {{ page.paginator.count }}</span>{% endif %}</div></div></div>
-<form method="get" class="inline-form mb-16">
+<form method="get" class="inline-form">
   <div class="field"><label for="fa">Действие</label><select id="fa" name="action"><option value="">Все</option>
     {% for v, l in actions %}<option value="{{ v }}" {% if v == sel_action %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
   <div class="field"><label for="fu">Пользователь</label><input id="fu" name="actor" value="{{ actor }}" type="text"></div>

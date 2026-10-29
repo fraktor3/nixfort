@@ -13,7 +13,7 @@
   <dt>Событий IDS</dt><dd>{{ d.ids.alerts }}</dd>
   <dt>Серверов</dt><dd>{{ d.servers|length }}</dd>
 </dl></div>
-<div class="cols even mt-24">
+<div class="cols even">
 {% for r in d.servers %}<section class="sec" aria-label="{{ r.node }}">
   <div class="sec-h"><h2 class="mono">{{ r.node }}</h2>{% if not r.reachable %}<div class="tools"><span class="st s-fail">{{ r.note }}</span></div>{% endif %}</div>
   {% if r.reachable %}<div class="box">
@@ -36,6 +36,6 @@
   {% for b in d.ids.by_signature %}<tr><td>{{ b.signature|sig }}<span class="sub mono">sid {{ b.sid }}</span></td><td class="num" data-l="событий">{{ b.count }}</td><td class="num" data-l="последнее">{{ b.last|isodt }}</td></tr>{% endfor %}</tbody></table></div>
   {% else %}<div class="box empty">Событий за период нет.</div>{% endif %}</section>
 {% endwith %}{% endif %}
-{% if history|length > 1 %}<details class="sec mt-24"><summary class="sec-h"><h2>Прошлые сводки<span class="n">{{ history|length }}</span></h2></summary>
+{% if history|length > 1 %}<details class="sec"><summary class="sec-h"><h2>Прошлые сводки<span class="n">{{ history|length }}</span></h2></summary>
   <div class="tw"><table class="t tight"><tbody>{% for h in history %}<tr><td><a class="plain" href="?s={{ h.id }}">{{ h.created_at|full }}</a></td><td class="num"><span class="st {{ h.state|st }}">{{ h.get_state_display }}</span></td></tr>{% endfor %}</tbody></table></div></details>{% endif %}
 {% endblock %}
