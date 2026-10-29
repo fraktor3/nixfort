@@ -1,7 +1,7 @@
 """Pages: audit runs, results of one run, one result with its evidence (also as a side-panel fragment)."""
 
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.core.rbac import Perm, has_perm, perm_required
 from apps.execution import services as job_services
@@ -11,6 +11,7 @@ from . import domain
 from .models import AuditRun, CheckResult
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def run_list(request, project_id):
     runs = AuditRun.objects.filter(project=request.project).select_related("initiated_by")[:30]
@@ -35,6 +36,7 @@ def run_start(request, project_id):
     return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def run_detail(request, project_id, run_id):
     run = get_object_or_404(AuditRun, id=run_id, project=request.project)
@@ -70,6 +72,7 @@ def run_detail(request, project_id, run_id):
     )
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def result_detail(request, project_id, run_id, result_id):
     res = get_object_or_404(

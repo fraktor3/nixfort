@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.core import audit
 from apps.core.models import Action
@@ -14,6 +14,7 @@ from .forms import RoleAssignForm, UserCreateForm
 from .models import RoleAssignment
 
 
+@require_safe
 @perm_required(Perm.MANAGE_USERS, project_kwarg=None)
 def user_list(request):
     users = get_user_model().objects.order_by("username").prefetch_related("role_assignments__project")

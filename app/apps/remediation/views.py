@@ -5,7 +5,7 @@ from django.db import transaction
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.checks.models import AuditRun
 from apps.core import audit
@@ -18,6 +18,7 @@ from . import planner
 from .models import PlanState, RemediationPlan
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def plan_list(request, project_id):
     plans = (RemediationPlan.objects.filter(project=request.project)
@@ -36,6 +37,7 @@ def plan_create(request, project_id, run_id):
     return redirect("remediation:plan_detail", project_id=project_id, plan_id=plan.id)
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def plan_detail(request, project_id, plan_id):
     plan = get_object_or_404(

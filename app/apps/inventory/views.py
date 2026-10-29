@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.core import audit
 from apps.core.models import Action
@@ -17,6 +17,7 @@ from .forms import HostKeyForm, NodeForm, ProjectForm
 from .models import HostKey, Node, PortScan, Project
 
 
+@require_safe
 def project_list(request):
     projects = visible_projects(request.user).order_by("status", "name")
     return render(request, "inventory/project_list.html", {"projects": projects})
@@ -44,6 +45,7 @@ def project_create(request):
     return render(request, "inventory/project_form.html", {"form": form})
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def project_detail(request, project_id):
     from apps.checks.models import AuditRun
@@ -147,6 +149,7 @@ def _node(request, node_id) -> Node:
     return get_object_or_404(Node.objects.select_related("project"), id=node_id, project=request.project)
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def node_detail(request, project_id, node_id):
     node = _node(request, node_id)
@@ -263,6 +266,7 @@ def portscan_run(request, project_id):
     return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def portscan_list(request, project_id):
     scans = PortScan.objects.filter(project=request.project)[:20]

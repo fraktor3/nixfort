@@ -9,6 +9,9 @@ from dataclasses import dataclass
 
 import paramiko
 
+# SHA-1 based SSH signatures are never negotiated (paramiko CVE-2026-44405 has no fixed release yet).
+DISABLED_ALGORITHMS = {"pubkeys": ["ssh-rsa", "ssh-dss"], "keys": ["ssh-rsa", "ssh-dss"]}
+
 # What an operator should check for each transport error (shown in job logs).
 TRANSPORT_HINTS = {
     "connection_refused": "узел доступен, но порт SSH закрыт: проверьте SSH-порт в карточке узла и что sshd запущен",
@@ -62,6 +65,8 @@ class SSHTransport:
                 timeout=self.connect_timeout,
                 banner_timeout=self.connect_timeout,
                 auth_timeout=self.connect_timeout,
+                # SHA-1 signatures are refused (CVE-2026-44405): RSA keys still work through rsa-sha2-256/512.
+                disabled_algorithms=DISABLED_ALGORITHMS,
             )
         except paramiko.BadHostKeyException as exc:
             raise TransportError("host_key_mismatch") from exc

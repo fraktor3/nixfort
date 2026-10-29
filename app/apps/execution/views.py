@@ -2,7 +2,7 @@
 
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.core.rbac import Perm, has_perm, perm_required
 
@@ -10,6 +10,7 @@ from . import services
 from .models import Job, JobType
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def job_list(request, project_id):
     jobs = Job.objects.filter(project=request.project).select_related("node", "requested_by")[:100]
@@ -17,6 +18,7 @@ def job_list(request, project_id):
     return render(request, "execution/job_list.html", {"project": request.project, "jobs": jobs, "can_run": can_run})
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def job_detail(request, project_id, job_id):
     job = get_object_or_404(Job.objects.select_related("node", "requested_by"), id=job_id, project=request.project)

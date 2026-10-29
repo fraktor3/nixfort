@@ -1,12 +1,17 @@
 """Security headers (CSP and friends) and the per-request roles cache."""
 
+from django.utils.cache import add_never_cache_headers
+
 
 class SecurityHeadersMiddleware:
-    """Content-Security-Policy and a few extra headers. All assets are local (no CDN)."""
+    """Content-Security-Policy and a few extra headers. All assets are local (no CDN).
+    Pages of a signed-in user are never stored by the browser or a proxy: after sign-out the Back button
+    cannot show project data again (WSTG-ATHN-06)."""
 
     CSP = (
         "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"
+        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; "
+        "object-src 'none'"
     )
 
     def __init__(self, get_response):
@@ -17,6 +22,10 @@ class SecurityHeadersMiddleware:
         response.setdefault("Content-Security-Policy", self.CSP)
         response.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         response.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated and not response.has_header("Cache-Control"):
+            add_never_cache_headers(response)
         return response
 
 

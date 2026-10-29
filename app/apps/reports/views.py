@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.checks.models import AuditRun
 from apps.core import audit
@@ -19,6 +19,7 @@ def _runs(project):
     return list(AuditRun.objects.filter(project=project, state="DONE").order_by("created_at"))
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def report_list(request, project_id):
     project = request.project
@@ -77,6 +78,7 @@ def _ctx(report):
     }
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def report_detail(request, project_id, report_id):
     report = get_object_or_404(Report, id=report_id, project=request.project)
@@ -85,6 +87,18 @@ def report_detail(request, project_id, report_id):
     return render(request, "reports/report_detail.html", ctx)
 
 
+class NoFetch:
+    """URL fetcher for WeasyPrint that fetches nothing: the printed report is self-contained (styles inline,
+    charts are inline SVG), so a URL that slipped into the HTML can never reach a file or the network (SSRF).
+    A callable object rather than a function: WeasyPrint 66 calls it, newer versions also read _fail_on_errors."""
+
+    _fail_on_errors = False
+
+    def __call__(self, url, *args, **kwargs):
+        raise ValueError(f"external resource refused: {url[:80]}")
+
+
+@require_safe
 @perm_required(Perm.EXPORT_REPORT)
 def report_download(request, project_id, report_id, fmt):
     report = get_object_or_404(Report, id=report_id, project=request.project)
@@ -102,7 +116,7 @@ def report_download(request, project_id, report_id, fmt):
             messages.error(request, "PDF недоступен: не установлена библиотека WeasyPrint.")
             return redirect("reports:detail", project_id=project_id, report_id=report_id)
         html = render_to_string("reports/report_print.html", {**_ctx(report), "project": request.project})
-        resp = HttpResponse(HTML(string=html).write_pdf(), content_type="application/pdf")
+        resp = HttpResponse(HTML(string=html, url_fetcher=NoFetch()).write_pdf(), content_type="application/pdf")
     else:
         return HttpResponse(status=404)
     resp["Content-Disposition"] = f'attachment; filename="{name}.{fmt}"'

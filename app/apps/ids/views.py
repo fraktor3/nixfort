@@ -1,7 +1,7 @@
 """Pages: IDS sensor state and events, protection scenarios and their results."""
 
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.core.rbac import Perm, has_perm, perm_required
 from apps.execution import services as job_services
@@ -25,6 +25,7 @@ def _sensor_status(project):
     return out
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def sensor(request, project_id):
     project = request.project
@@ -54,6 +55,7 @@ def fetch(request, project_id):
     return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def protection(request, project_id):
     project = request.project
@@ -88,6 +90,7 @@ def protection_run(request, project_id, scenario):
     return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def protection_detail(request, project_id, test_id):
     t = get_object_or_404(ProtectionTest, id=test_id, project=request.project)

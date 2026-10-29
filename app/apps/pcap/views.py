@@ -3,7 +3,7 @@
 from django.contrib import messages
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.core import audit
 from apps.core.models import Action
@@ -36,6 +36,7 @@ def _targets(project):
     return out
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def pcap_list(request, project_id):
     project = request.project
@@ -103,6 +104,7 @@ def upload(request, project_id):
     return redirect("execution:job_detail", project_id=project_id, job_id=job.id)
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def pcap_detail(request, project_id, pcap_id):
     cap = get_object_or_404(PcapCapture.objects.select_related("node", "job"), id=pcap_id, project=request.project)
@@ -112,6 +114,7 @@ def pcap_detail(request, project_id, pcap_id):
     })  # fmt: skip
 
 
+@require_safe
 @perm_required(Perm.RUN_JOBS)
 def download(request, project_id, pcap_id):
     cap = get_object_or_404(PcapCapture, id=pcap_id, project=request.project)

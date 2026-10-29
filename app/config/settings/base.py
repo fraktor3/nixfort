@@ -104,6 +104,9 @@ AXES_COOLOFF_TIME = 0.25  # hours
 AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = "accounts/locked.html"
+# The client address is the one nginx puts into X-Real-IP (the same one the audit journal records);
+# without it every request would carry the address of the nginx container.
+AXES_CLIENT_IP_CALLABLE = "apps.core.audit.client_ip"
 
 # Celery
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")

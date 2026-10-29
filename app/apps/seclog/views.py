@@ -1,7 +1,7 @@
 """Page: security-log summary and its history."""
 
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from apps.core.rbac import Perm, has_perm, perm_required
 from apps.execution import services as job_services
@@ -10,6 +10,7 @@ from apps.execution.models import JobType
 from .models import SecuritySummary
 
 
+@require_safe
 @perm_required(Perm.VIEW_PROJECT)
 def seclog(request, project_id):
     project = request.project

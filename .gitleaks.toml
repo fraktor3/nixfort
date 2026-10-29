@@ -1,0 +1,7 @@
+# Secret scan (gitleaks): the default rules plus one exception, the fake passwords of throwaway test users.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "test fixtures"
+paths = ['''(^|/)conftest\.py$''', '''(^|/)tests/[^/]+\.py$''']

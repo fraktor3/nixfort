@@ -5,7 +5,7 @@ from django.core.paginator import Paginator
 from django.db import connection
 from django.http import JsonResponse
 from django.shortcuts import render
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_safe
 
 from .models import Action, AuditEvent
 from .rbac import Perm, has_perm, visible_projects
@@ -23,6 +23,7 @@ def healthz(request):
     return JsonResponse({"status": "ok"})
 
 
+@require_safe
 def dashboard(request):
     from apps.checks.models import AuditRun
     from apps.execution.models import Job
@@ -40,6 +41,7 @@ def dashboard(request):
     return render(request, "core/dashboard.html", {"rows": rows, "projects": projects, "jobs": jobs})
 
 
+@require_safe
 def audit_log(request):
     projects = visible_projects(request.user)
     qs = AuditEvent.objects.all()
@@ -60,10 +62,12 @@ def audit_log(request):
 
 
 @login_not_required
+@require_safe
 def terms(request):
     return render(request, "core/terms.html")
 
 
 @login_not_required
+@require_safe
 def privacy(request):
     return render(request, "core/privacy.html")
